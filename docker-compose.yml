@@ -1,0 +1,20 @@
+# docker compose up --build  ->  http://localhost:8080
+#
+# The app talks to MongoDB Atlas. All settings (MONGO_*, JWT secrets, OPENROUTER_API_KEY, LLM_MODELS, ...)
+# come from server/.env, the same file `npm run dev:server` uses, so there is nothing to configure twice.
+# The environment block below only overrides what must differ inside the container.
+services:
+  app:
+    build: .
+    ports:
+      - '8080:8080'
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      CLIENT_ORIGIN: http://localhost:8080
+      # Plain http on localhost: Secure cookies are not reliably accepted (Safari), so turn them off here.
+      COOKIE_SECURE: 'false'
+      TRUST_PROXY: 0
+    restart: unless-stopped
