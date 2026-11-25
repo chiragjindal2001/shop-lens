@@ -38,6 +38,10 @@ More prompts, including the cases it should refuse, are in [Sample inputs](#samp
 - **Product questions** answered from the product catalog; it never invents products.
 - **Human handoff** by creating a support ticket with a ticket number.
 - **Streaming replies** token by token over Server-Sent Events, with tool status shown while the agent works.
+- **Voice input.** A mic button in the chat box and the home search box turns speech into text (browser
+  speech recognition, English-India). The words appear as you speak and nothing is sent until you press Send.
+  Hidden in browsers without support (e.g. Firefox); Chrome sends the audio to Google for recognition, and the site
+  needs HTTPS (or localhost) to use the microphone.
 - **Private chat history** per user, with past conversations and new chats.
 - **Guardrails:** stays on store topics, never repeats card numbers, and explains policy instead of promising exceptions.
 - **Polished UI:** storefront with one-click order actions (cancelling needs a second, explicit click), a resizable

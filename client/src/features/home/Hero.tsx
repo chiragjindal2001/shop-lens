@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/icons';
+import { MicButton } from '../chat/MicButton';
+import { useSpeechInput } from '../chat/useSpeechInput';
 import { scrollToSection } from './TopNav';
 
 interface Props {
@@ -10,6 +12,7 @@ interface Props {
 
 export function Hero({ firstName, onAsk }: Props) {
   const [q, setQ] = useState('');
+  const speech = useSpeechInput(q, setQ);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -41,10 +44,16 @@ export function Hero({ firstName, onAsk }: Props) {
             placeholder="Ask Shoplens anything…"
             className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
           />
+          <MicButton speech={speech} className="h-10 w-10" />
           <Button type="submit" size="sm" className="h-10 rounded-xl px-4" disabled={!q.trim()}>
             Ask
           </Button>
         </form>
+        {speech.error && (
+          <p role="alert" className="mt-2 max-w-md rounded-lg bg-black/25 px-3 py-1.5 text-[13px]">
+            {speech.error}
+          </p>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-2.5">
           <button onClick={() => scrollToSection('products')} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur-sm transition hover:bg-white/25">

@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, 
 import { MAX_MESSAGE_LENGTH } from '@shared/limits';
 import { Icon } from '../../components/ui/icons';
 import { tip } from '../../lib/tip';
+import { MicButton } from './MicButton';
+import { useSpeechInput } from './useSpeechInput';
 
 interface Props {
   streaming: boolean;
@@ -17,6 +19,7 @@ export function Composer({ streaming, onSend, onStop, textareaRef }: Props) {
   const [text, setText] = useState('');
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? own;
+  const speech = useSpeechInput(text, setText);
   const trimmed = text.trim();
   const tooLong = text.length > MAX_MESSAGE_LENGTH;
   const canSend = trimmed.length > 0 && !tooLong && !streaming;
@@ -58,6 +61,7 @@ export function Composer({ streaming, onSend, onStop, textareaRef }: Props) {
           aria-label="Message"
           className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-snug outline-none placeholder:text-muted/70 disabled:opacity-60"
         />
+        <MicButton speech={speech} disabled={streaming} />
         {streaming ? (
           <button type="button" onClick={onStop} aria-label="Stop" {...tip('Stop generating', 'top', 'end')} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-fg transition hover:bg-border">
             <Icon name="stop" size={16} fill="currentColor" />
@@ -75,7 +79,15 @@ export function Composer({ streaming, onSend, onStop, textareaRef }: Props) {
         )}
       </div>
       <div className="mt-1.5 flex justify-between px-1.5 text-[11px] text-muted">
-        <span>Enter to send · Shift+Enter for a new line</span>
+        {speech.error ? (
+          <span role="alert" className="text-danger">
+            {speech.error}
+          </span>
+        ) : speech.listening ? (
+          <span aria-live="polite">Listening… speak now</span>
+        ) : (
+          <span>Enter to send · Shift+Enter for a new line</span>
+        )}
         {text.length > MAX_MESSAGE_LENGTH * 0.8 && (
           <span className={tooLong ? 'font-medium text-danger' : ''}>
             {text.length}/{MAX_MESSAGE_LENGTH}
