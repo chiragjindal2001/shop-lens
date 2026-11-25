@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import type { ProductDto } from '@shared';
 import { Button } from '../../components/ui/Button';
 import { Icon, type IconName } from '../../components/ui/icons';
@@ -19,11 +19,19 @@ const ICON_BY_CATEGORY: Record<string, IconName> = {
 /** What "Ask about this" sends: the assistant describes the product, then the customer can ask for details. */
 export const askAboutProduct = (p: Pick<ProductDto, 'name'>) => `Tell me about the ${p.name}`;
 
+/** Illustrations live in public/products/<product id>.svg; a product without one falls back to its category icon. */
+export const productImage = (p: Pick<ProductDto, 'id'>) => `/products/${p.id}.svg`;
+
 const ProductCard = memo(function ProductCard({ product: p, onAsk }: { product: ProductDto; onAsk(text: string): void }) {
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <article className="shadow-card group flex flex-col rounded-2xl border border-border bg-surface p-4 transition hover:-translate-y-0.5 hover:shadow-pop">
-      <div className="bg-brand-soft relative grid h-28 place-items-center rounded-xl text-brand">
-        <Icon name={ICON_BY_CATEGORY[p.category] ?? 'package'} size={44} strokeWidth={1.4} />
+      <div className="bg-brand-soft relative grid aspect-8/5 place-items-center overflow-hidden rounded-xl text-brand">
+        {imageFailed ? (
+          <Icon name={ICON_BY_CATEGORY[p.category] ?? 'package'} size={44} strokeWidth={1.4} />
+        ) : (
+          <img src={productImage(p)} alt={p.name} width={320} height={200} loading="lazy" decoding="async" onError={() => setImageFailed(true)} className="size-full object-cover" />
+        )}
         {p.freeShipping && <span className="absolute top-2 left-2 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success">Free shipping</span>}
       </div>
       <p className="mt-3 text-[11px] font-semibold tracking-wide text-muted uppercase">{p.category}</p>

@@ -179,6 +179,18 @@ export function useChatStream({ onConversationCreated, onTurnFinished, onNotFoun
 
   const stop = useCallback(() => abort.current?.abort(), []);
 
+  /**
+   * Forgets the current conversation, so the next message starts a new one (the old one stays in History).
+   * Does nothing while a reply is still streaming.
+   */
+  const reset = useCallback(() => {
+    if (abort.current) return;
+    pendingTokens.current = '';
+    conversationId.current = undefined;
+    setSendError(null);
+    setMessages([]);
+  }, []);
+
   useEffect(
     () => () => {
       abort.current?.abort();
@@ -187,5 +199,5 @@ export function useChatStream({ onConversationCreated, onTurnFinished, onNotFoun
     [],
   );
 
-  return { messages, streaming, loadingConversation, sendError, open, send, stop, retrySendError, retryMessage };
+  return { messages, streaming, loadingConversation, sendError, open, send, stop, retrySendError, retryMessage, reset };
 }

@@ -10,6 +10,7 @@ import { ResizeHandle } from './ResizeHandle';
 import { Storefront } from './Storefront';
 import { useOrders } from './useOrders';
 import { useProducts } from './useProducts';
+import { useIsDesktop } from './useIsDesktop';
 import { useResizablePanel } from './useResizablePanel';
 
 /**
@@ -40,19 +41,30 @@ export function HomePage() {
     },
     onNotFound: () => setParams({}, { replace: true }),
   });
-  const { open, send } = chat;
+  const { open, send, reset } = chat;
+  const isDesktop = useIsDesktop();
 
   useEffect(() => {
     void open(chatId);
   }, [chatId, open]);
 
-  /** Every button on the page that "asks the assistant" goes through here. */
+  // Is the assistant on screen right now? Always on desktop; on a phone only while the slide-over is open.
+  // A ref, so `ask` stays stable and the memoized storefront is not re-rendered when the panel opens or closes.
+  const panelVisible = useRef(false);
+  panelVisible.current = isDesktop || assistantOpen;
+
+  /**
+   * Every button on the page that "asks the assistant" goes through here. If the assistant is not on screen (the
+   * phone slide-over was closed), the previous chat is finished as far as the visitor is concerned, so the question
+   * starts a new chat instead of being added to it. On desktop the chat is right there, so it continues.
+   */
   const ask = useCallback(
     (text: string) => {
+      if (!panelVisible.current) reset();
       setAssistantOpen(true);
       void send(text);
     },
-    [send],
+    [send, reset],
   );
 
   async function handleDelete(id: string) {

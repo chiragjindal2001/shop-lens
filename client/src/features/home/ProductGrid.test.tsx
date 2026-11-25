@@ -1,8 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProductDto } from '@shared';
-import { askAboutProduct, ProductGrid } from './ProductGrid';
+import { askAboutProduct, ProductGrid, productImage } from './ProductGrid';
 
 const product = (over: Partial<ProductDto>): ProductDto => ({
   id: 'p1',
@@ -52,5 +54,26 @@ describe('ProductGrid', () => {
     rerender(<ProductGrid onAsk={vi.fn()} catalog={state([], { error: true, reload })} />);
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(reload).toHaveBeenCalledOnce();
+  });
+});
+
+describe('product pictures', () => {
+  it('shows the product picture with the product name as its alt text', () => {
+    render(<ProductGrid onAsk={vi.fn()} catalog={state([product({})])} />);
+    const img = screen.getByRole('img', { name: 'boAt Airdopes 141 Earbuds' });
+    expect(img).toHaveAttribute('src', '/products/p1.svg');
+  });
+
+  it('falls back to the category icon when the picture cannot load', () => {
+    render(<ProductGrid onAsk={vi.fn()} catalog={state([product({})])} />);
+    fireEvent.error(screen.getByRole('img', { name: 'boAt Airdopes 141 Earbuds' }));
+    expect(screen.queryByRole('img', { name: 'boAt Airdopes 141 Earbuds' })).not.toBeInTheDocument();
+  });
+
+  it('every product in the server catalog has an illustration file', () => {
+    const data = readFileSync(path.resolve(__dirname, '../../../../server/src/modules/catalog/catalog.data.ts'), 'utf8');
+    const ids = [...data.matchAll(/^\s{4}id: '([^']+)'/gm)].map((m) => m[1]!);
+    expect(ids.length).toBeGreaterThanOrEqual(6);
+    for (const id of ids) expect(existsSync(path.resolve(__dirname, '../../../public', productImage({ id }).slice(1))), id).toBe(true);
   });
 });

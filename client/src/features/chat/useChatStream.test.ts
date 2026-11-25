@@ -125,3 +125,47 @@ describe('useChatStream', () => {
     expect(opts.onNotFound).toHaveBeenCalledOnce();
   });
 });
+
+describe('reset (start a new chat)', () => {
+  const done = (id: string): SseEvent[] => [
+    { event: 'meta', data: { conversationId: id, messageId: 'm-' + id } },
+    { event: 'token', data: { text: 'ok' } },
+    { event: 'done', data: { messageId: 'm-' + id } },
+  ];
+
+  it('forgets the conversation: the old messages are cleared and the next message starts a new one', async () => {
+    emits(done('c1'));
+    const { result } = renderHook(() => useChatStream(options()));
+
+    await act(() => result.current.send('first'));
+    await act(() => result.current.send('second')); // normally the chat continues
+    expect(streamMessage.mock.calls[1]![0]).toMatchObject({ conversationId: 'c1' });
+
+    act(() => result.current.reset());
+    expect(result.current.messages).toEqual([]);
+
+    await act(() => result.current.send('third'));
+    expect(streamMessage.mock.calls[2]![0]).toMatchObject({ conversationId: undefined }); // a new conversation
+    expect(result.current.messages.map((m) => m.content)).toEqual(['third', 'ok']); // none of the earlier messages
+  });
+
+  it('does nothing while a reply is still streaming', async () => {
+    let release!: () => void;
+    streamMessage.mockImplementation(({ onEvent }: { onEvent: (e: SseEvent) => void }) => {
+      onEvent({ event: 'meta', data: { conversationId: 'c1', messageId: 'm1' } });
+      return new Promise<void>((resolve) => (release = resolve));
+    });
+    const { result } = renderHook(() => useChatStream(options()));
+    let sending!: Promise<void>;
+    act(() => void (sending = result.current.send('hello')));
+    expect(result.current.messages).toHaveLength(2);
+
+    act(() => result.current.reset());
+    expect(result.current.messages).toHaveLength(2); // the streaming chat is left alone
+
+    await act(async () => {
+      release();
+      await sending;
+    });
+  });
+});
