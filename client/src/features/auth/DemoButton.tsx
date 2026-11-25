@@ -1,6 +1,5 @@
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/icons';
-import { SLOW_HINT_TEXT, useSlowHint } from './useSlowHint';
 
 interface Props {
   pending: boolean;
@@ -11,29 +10,21 @@ interface Props {
 
 /**
  * The main call to action on the sign-in screens: most visitors are here to look around, not to register.
- * If the server is slow to answer (free hosting wakes up from sleep), the label explains the wait.
+ * While it works it shows a spinner; the label never changes.
  */
 export function DemoButton({ pending, disabled, onClick }: Props) {
-  const slow = useSlowHint(pending);
   return (
     <div>
       <Button
         type="button"
         size="lg"
-        className={`w-full ${slow ? 'h-auto! min-h-12 py-2.5 leading-snug whitespace-normal!' : ''}`}
+        className="w-full"
         loading={pending}
         disabled={disabled}
         onClick={onClick}
-        aria-live="polite"
       >
-        {slow ? (
-          SLOW_HINT_TEXT
-        ) : (
-          <>
-            <Icon name="sparkles" />
-            Try the demo account
-          </>
-        )}
+        <Icon name="sparkles" />
+        Try the demo account
       </Button>
       <p className="mt-2 text-center text-[13px] text-muted">One click, no signup. Comes with sample orders.</p>
     </div>

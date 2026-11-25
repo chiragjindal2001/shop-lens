@@ -5,12 +5,13 @@ export type Theme = 'light' | 'dark' | 'system';
 const KEY = 'shoplens-theme';
 const ORDER: Theme[] = ['light', 'dark', 'system'];
 
+/** Light is the default: nothing stored (or storage blocked) means light, whatever the OS prefers. */
 function readStored(): Theme {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    return v === 'dark' || v === 'system' ? v : 'light';
   } catch {
-    return 'system'; // storage blocked (private mode etc.)
+    return 'light'; // storage blocked (private mode etc.)
   }
 }
 
@@ -22,7 +23,10 @@ export function applyTheme(t: Theme): void {
   document.documentElement.classList.toggle('dark', isDark(t));
 }
 
-/** Light / dark / follow-the-system, remembered in localStorage. The initial class is set by /theme-init.js. */
+/**
+ * Light (the default) / dark / follow-the-system, remembered in localStorage. "System" is stored explicitly, so only
+ * a visitor who picked it follows the OS. The initial class is set by /theme-init.js before first paint.
+ */
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(readStored);
 
@@ -37,7 +41,7 @@ export function useTheme() {
 
   const setTheme = useCallback((t: Theme) => {
     try {
-      if (t === 'system') localStorage.removeItem(KEY);
+      if (t === 'light') localStorage.removeItem(KEY); // light is what "nothing stored" means
       else localStorage.setItem(KEY, t);
     } catch {
       /* ignore */

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -140,35 +140,25 @@ describe('login page layout', () => {
   });
 });
 
-describe('slow server (free hosting waking up)', () => {
-  it('after 3 seconds the demo button explains the wait instead of a silent spinner', async () => {
-    auth({ login: vi.fn(() => new Promise<void>(() => {})) }); // never answers
-    renderLogin();
-    await user().click(screen.getByRole('button', { name: /Try the demo account/ }));
-    expect(screen.getByRole('button', { name: /Try the demo account/ })).toBeDisabled(); // pending, but still quick
+describe('slow server', () => {
+  it('the demo, Log in and Sign up buttons never change their label, however long the server takes', async () => {
+    // Login pages: the demo button and Log in keep their words while the request hangs.
+    auth({ login: vi.fn(() => new Promise<void>(() => {})) });
+    const login = renderLogin();
+    const u = user();
+    await u.click(screen.getByRole('button', { name: /Try the demo account/ }));
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole('button', { name: /Try the demo account/ })).toBeDisabled(); // busy, but same label
     expect(screen.queryByText(SLOW_HINT_TEXT)).not.toBeInTheDocument();
+    login.unmount();
 
-    act(() => void vi.advanceTimersByTime(3000));
-    expect(screen.getByRole('button', { name: SLOW_HINT_TEXT })).toBeDisabled();
-  });
-
-  it('the Log in button explains the wait too', async () => {
     auth({ login: vi.fn(() => new Promise<void>(() => {})) });
     renderLogin();
-    const u = user();
     await u.type(screen.getByLabelText('Email'), 'a@b.co');
     await u.type(screen.getByLabelText('Password'), 'Passw0rd!x');
     await u.click(screen.getByRole('button', { name: 'Log in' }));
-    expect(screen.queryByText(SLOW_HINT_TEXT)).not.toBeInTheDocument();
-    act(() => void vi.advanceTimersByTime(3000));
-    expect(screen.getByRole('button', { name: SLOW_HINT_TEXT })).toBeInTheDocument();
-  });
-
-  it('a quick answer never shows the message', async () => {
-    auth({ login: vi.fn().mockResolvedValue(undefined) });
-    renderLogin();
-    await user().click(screen.getByRole('button', { name: /Try the demo account/ }));
-    act(() => void vi.advanceTimersByTime(10_000));
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole('button', { name: 'Log in' })).toBeDisabled();
     expect(screen.queryByText(SLOW_HINT_TEXT)).not.toBeInTheDocument();
   });
 
@@ -310,7 +300,7 @@ describe('signup page', () => {
     expect(signup).toHaveBeenCalledOnce();
   });
 
-  it('after 3 seconds the Sign up button explains the wait', async () => {
+  it('the Sign up button keeps its label while the server takes a long time', async () => {
     auth({ signup: vi.fn(() => new Promise<void>(() => {})) });
     renderSignup();
     const u = user();
@@ -319,8 +309,9 @@ describe('signup page', () => {
     await u.type(screen.getByLabelText('Password'), 'Passw0rd!x');
     await u.type(screen.getByLabelText('Confirm password'), 'Passw0rd!x');
     await u.click(screen.getByRole('button', { name: 'Sign up' }));
-    act(() => void vi.advanceTimersByTime(3000));
-    await waitFor(() => expect(screen.getByRole('button', { name: SLOW_HINT_TEXT })).toBeInTheDocument());
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole('button', { name: 'Sign up' })).toBeDisabled();
+    expect(screen.queryByText(SLOW_HINT_TEXT)).not.toBeInTheDocument();
   });
 });
 

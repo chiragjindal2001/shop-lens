@@ -1,5 +1,4 @@
 import { Button } from '../../components/ui/Button';
-import { SLOW_HINT_TEXT, useSlowHint } from './useSlowHint';
 
 interface Props {
   label: string;
@@ -8,20 +7,18 @@ interface Props {
   disabled?: boolean;
 }
 
-/** The form's submit button: shows a spinner while pending, and explains the wait if the server is slow to wake. */
+/** The form's submit button: shows a spinner while pending; the label never changes. */
 export function SubmitButton({ label, pending, disabled }: Props) {
-  const slow = useSlowHint(pending);
   return (
     <Button
       type="submit"
       variant="secondary"
       size="lg"
-      className={`w-full ${slow ? 'h-auto! min-h-12 py-2.5 leading-snug whitespace-normal!' : ''}`}
+      className="w-full"
       loading={pending}
       disabled={disabled}
-      aria-live="polite"
     >
-      {slow ? SLOW_HINT_TEXT : label}
+      {label}
     </Button>
   );
 }

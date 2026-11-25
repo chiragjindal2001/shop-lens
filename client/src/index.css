@@ -221,6 +221,20 @@ body {
   }
 }
 
+/*
+ * iOS Safari zooms the page in when a text field whose font size is under 16px gets focus, and it never zooms back
+ * out. So on touch screens every text field is 16px. (Blocking zoom with maximum-scale would also stop people who
+ * need to pinch-zoom, so we don't.) Not in a layer on purpose: it must beat the text-sm / text-[14.5px] utilities.
+ * Desktop keeps the compact sizes.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='file']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* ---------- Motion ---------- */
 @keyframes fade-up {
   from {
