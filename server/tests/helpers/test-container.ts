@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { inject } from 'vitest';
 import { createApp } from '../../src/app';
 import { loadConfig, type Config } from '../../src/config/env';
 import { buildContainer, type Container } from '../../src/container';
@@ -30,12 +31,13 @@ export interface TestEnv {
   stop(): Promise<void>;
 }
 
-let mongod: MongoMemoryServer | undefined;
-
-/** Mongo adapters on mongodb-memory-server + the mock LLM (no network, no API key). */
+/**
+ * Mongo adapters + the mock LLM (no network, no API key). Every call uses its own database inside the one
+ * in-memory MongoDB that tests/global-setup.ts starts for the whole run, so test files never see each other's data.
+ */
 export async function startTestEnv(opts: { llm?: LlmClient; config?: Partial<Config> } = {}): Promise<TestEnv> {
-  mongod = await MongoMemoryServer.create();
-  await connectMongo(mongod.getUri());
+  const dbName = `shoplens_test_${randomUUID().replaceAll('-', '')}`;
+  await connectMongo(`${inject('mongoUri')}${dbName}`);
   await ensureIndexes();
   const repos = createMongoRepositories();
   const base = testConfig();
@@ -55,8 +57,8 @@ export async function startTestEnv(opts: { llm?: LlmClient; config?: Partial<Con
       await Promise.all(cols.map((c) => c.deleteMany({})));
     },
     async stop() {
+      await mongoose.connection.dropDatabase().catch(() => undefined); // free the space as soon as the file is done
       await disconnectMongo();
-      await mongod?.stop();
     },
   };
 }
