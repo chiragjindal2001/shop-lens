@@ -6,9 +6,11 @@ import { AssistantPanel } from '../chat/AssistantPanel';
 import { useChatStream } from '../chat/useChatStream';
 import { useConversations } from '../chat/useConversations';
 import { changesOrders } from './orderTools';
+import { ResizeHandle } from './ResizeHandle';
 import { Storefront } from './Storefront';
 import { useOrders } from './useOrders';
 import { useProducts } from './useProducts';
+import { useResizablePanel } from './useResizablePanel';
 
 /**
  * The home page: a Shoplens storefront on the left and the AI assistant docked on the right.
@@ -25,6 +27,7 @@ export function HomePage() {
   const conversations = useConversations();
   const orders = useOrders();
   const catalog = useProducts();
+  const panel = useResizablePanel();
   const { refresh: refreshConversations } = conversations;
   const { refresh: refreshOrders } = orders;
 
@@ -61,13 +64,16 @@ export function HomePage() {
   const firstName = user?.name.trim().split(/\s+/)[0] ?? 'there';
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div ref={panel.rootRef} style={panel.rootStyle} className="flex h-dvh overflow-hidden">
       {/* Storefront */}
       <Storefront userName={user?.name ?? ''} firstName={firstName} orders={orders} catalog={catalog} onAsk={ask} onLogout={handleLogout} />
 
-      {/* Assistant: docked on desktop, slide-over on mobile */}
+      {/* Drag to resize the assistant (desktop) */}
+      <ResizeHandle width={panel.width} min={panel.min} max={panel.max} dragging={panel.dragging} {...panel.handleProps} />
+
+      {/* Assistant: docked on desktop (resizable), slide-over on mobile */}
       <AssistantPanel
-        className={`fixed inset-0 z-40 transition duration-200 lg:static lg:z-auto lg:w-[28rem] lg:shrink-0 lg:translate-x-0 lg:border-l lg:border-border lg:transition-none ${
+        className={`fixed inset-0 z-40 transition duration-200 lg:static lg:z-auto lg:w-(--panel-w) lg:shrink-0 lg:translate-x-0 lg:border-l lg:border-border lg:transition-none ${
           assistantOpen ? 'translate-x-0' : 'max-lg:invisible max-lg:translate-x-full'
         }`}
         chat={chat}
