@@ -1,25 +1,47 @@
 import type { ButtonHTMLAttributes } from 'react';
 import { Spinner } from './Spinner';
 
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'sm' | 'md' | 'lg';
+
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: Variant;
+  size?: Size;
   loading?: boolean;
 }
 
-const styles = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300',
-  secondary: 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-50',
-  ghost: 'text-slate-600 hover:bg-slate-100 disabled:opacity-50',
+const VARIANTS: Record<Variant, string> = {
+  primary: 'bg-brand-gradient text-white shadow-sm hover:brightness-110 active:brightness-95',
+  secondary: 'border border-border bg-surface text-fg hover:bg-surface-2',
+  ghost: 'text-muted hover:bg-surface-2 hover:text-fg',
+  danger: 'bg-danger-soft text-danger hover:brightness-95',
+};
+const SIZES: Record<Size, string> = {
+  sm: 'h-8 gap-1.5 rounded-lg px-3 text-[13px]',
+  md: 'h-10 gap-2 rounded-xl px-4 text-sm',
+  lg: 'h-12 gap-2 rounded-xl px-5 text-[15px]',
 };
 
-export function Button({ variant = 'primary', loading, disabled, children, className = '', ...rest }: Props) {
+export function Button({ variant = 'primary', size = 'md', loading, disabled, children, className = '', ...rest }: Props) {
   return (
     <button
       {...rest}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
     >
-      {loading && <Spinner />}
+      {loading && <Spinner decorative className="h-4 w-4" />}
+      {children}
+    </button>
+  );
+}
+
+/** Square icon-only button (always give it an aria-label). */
+export function IconButton({ className = '', children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...rest}
+      className={`inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
       {children}
     </button>
   );
