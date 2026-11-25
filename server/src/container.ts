@@ -14,6 +14,8 @@ import { createReturnRequestTool } from './modules/ai/tools/create-return-reques
 import { createSupportTicketTool } from './modules/ai/tools/create-support-ticket.tool';
 import { getOrderStatusTool } from './modules/ai/tools/get-order-status.tool';
 import { searchPoliciesTool } from './modules/ai/tools/search-policies.tool';
+import { searchProductsTool } from './modules/ai/tools/search-products.tool';
+import { CatalogService } from './modules/catalog/catalog.service';
 import { listMyOrdersTool } from './modules/ai/tools/list-my-orders.tool';
 import { ToolRegistry } from './modules/ai/tools/registry';
 import { AuthService } from './modules/auth/auth.service';
@@ -27,6 +29,7 @@ export interface Container {
   tokens: TokenService;
   auth: AuthService;
   orders: OrderService;
+  catalog: CatalogService;
   tickets: TicketService;
   chat: ChatService;
   ingest: IngestService;
@@ -64,6 +67,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const tickets = new TicketService(repos.tickets);
   const auth = new AuthService(repos.users, repos.sessions, tokens, orders, config.BCRYPT_COST);
 
+  const catalog = new CatalogService();
   const knowledge = new KnowledgeService(llm, repos.knowledge, config.kbMinScore);
   const ingest = new IngestService(llm, repos.knowledge, config.KB_DIR);
 
@@ -75,6 +79,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     cancelOrderTool(orders),
     createSupportTicketTool(tickets),
     searchPoliciesTool(knowledge),
+    searchProductsTool(catalog),
   ]);
   const chat = new ChatService(
     repos.conversations,
@@ -84,5 +89,5 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     { maxMessages: config.HISTORY_MAX_MESSAGES, maxChars: config.HISTORY_MAX_CHARS },
   );
 
-  return { config, tokens, auth, orders, tickets, chat, ingest, knowledge: repos.knowledge, health: overrides.health ?? pingMongo };
+  return { config, tokens, auth, orders, catalog, tickets, chat, ingest, knowledge: repos.knowledge, health: overrides.health ?? pingMongo };
 }

@@ -7,6 +7,9 @@ import type { LlmChatRequest, LlmChatResponse, LlmClient, LlmMessage } from '../
 const STOPWORDS = new Set(
   'a an and are as at be by can do does for from get how i if in is it its me my of on or our so that the their there this to us was we what when where which who will with you your'.split(' '),
 );
+const PRODUCT_PHRASES = /\b(tell me about|about the|how much|price of|cost of)\b/;
+const PRODUCT_WORDS =
+  /\b(earbuds?|headphones?|power ?bank|smart ?watch|mouse|speaker|usb-?c cable|airdopes|colorfit|m331|mi power)\b/;
 const POLICY_WORDS =
   /\b(polic(y|ies)|ship(ping)?|deliver(y|ies)?|pin ?code|cod|cash on delivery|payments?|upi|emi|warranty|refunds?|returns?|password|address|gst|invoice|account|charges?|fee|free)\b/;
 
@@ -64,6 +67,9 @@ export class MockLlmClient implements LlmClient {
       return call('create_support_ticket', { summary: userText.slice(0, 200) });
     }
     if (orderNo) return call('get_order_status', { orderNumber: orderNo });
+    if (PRODUCT_PHRASES.test(lower) || (PRODUCT_WORDS.test(lower) && !POLICY_WORDS.test(lower))) {
+      return call('search_products', { query: userText.slice(0, 200) });
+    }
     if (POLICY_WORDS.test(lower)) return call('search_policies', { query: userText.slice(0, 300) });
     if (/\b(order|orders|where)\b/.test(lower)) return call('list_my_orders', {});
 
@@ -108,6 +114,15 @@ function summarizeTool(messages: LlmMessage[], raw: string): string {
       if (!top) return "I couldn't find that in our store policies. Would you like me to create a support ticket so a human can help?";
       const body = String(top.text).split('\n').slice(1).join(' ').replace(/\s+/g, ' ').trim();
       return `According to our ${top.source} (${top.section}): ${body.slice(0, 450)}${body.length > 450 ? '…' : ''}`;
+    }
+    case 'search_products': {
+      const list = data.products ?? [];
+      if (list.length === 0) return "I couldn't find that in our catalog. Is there something else I can help you find?";
+      if (list.length > 1) {
+        return `Here's what we have:\n${list.map((p: any) => `- ${p.name}: ₹${p.priceInr}`).join('\n')}\nTell me which one you'd like to know more about.`;
+      }
+      const p = list[0];
+      return `${p.name} (₹${p.priceInr}): ${p.description} Key features: ${p.features.slice(0, 4).join('; ')}. ${p.shipping}. Want to know about its warranty, delivery or returns?`;
     }
     case 'create_support_ticket':
       return `I've created ticket ${data.ticketNumber}. A human agent will follow up.`;

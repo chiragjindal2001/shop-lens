@@ -11,6 +11,8 @@ import { AuthController } from './modules/auth/auth.controller';
 import { authRoutes } from './modules/auth/auth.routes';
 import { ChatController } from './modules/chat/chat.controller';
 import { chatRoutes } from './modules/chat/chat.routes';
+import { CatalogController } from './modules/catalog/catalog.controller';
+import { catalogRoutes } from './modules/catalog/catalog.routes';
 import { OrdersController } from './modules/orders/orders.controller';
 import { ordersRoutes } from './modules/orders/orders.routes';
 import { mountStatic } from './static';
@@ -40,6 +42,7 @@ export function createApp(c: Container): Express {
   api.use('/auth', authRoutes(new AuthController(c.auth, config.COOKIE_SECURE ?? isProd, config.refreshTokenTtlSeconds), mw));
   api.use('/chat', chatRoutes(new ChatController(c.chat), mw));
   api.use('/orders', ordersRoutes(new OrdersController(c.orders), mw));
+  api.use('/products', catalogRoutes(new CatalogController(c.catalog), mw));
   api.use(notFoundHandler);
   app.use('/api', api);
 
