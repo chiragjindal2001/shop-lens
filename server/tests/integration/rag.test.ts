@@ -33,6 +33,16 @@ describe('retrieval quality (mock embeddings)', () => {
     expect(top!.source).toBe(source);
   });
 
+  it.each(['Is shipping free?', 'is shipping free', 'Do you charge for shipping?', 'What is the delivery fee?'])(
+    'the short question "%s" finds the shipping charges section first, above the relevance threshold',
+    async (question) => {
+      const [vec] = await new MockLlmClient().embed([question]);
+      const [top] = await env.container.knowledge.search(vec!, { limit: 1 });
+      expect(top).toMatchObject({ source: 'Shipping Policy', section: 'Shipping charges' });
+      expect(top!.score).toBeGreaterThanOrEqual(env.container.config.kbMinScore);
+    },
+  );
+
   it('an off-topic question scores below the relevance threshold', async () => {
     const hits = await env.container.knowledge.search((await new MockLlmClient().embed(['who won the cricket world cup']))[0]!, { limit: 4 });
     expect(hits.every((h) => h.score < env.container.config.kbMinScore)).toBe(true);

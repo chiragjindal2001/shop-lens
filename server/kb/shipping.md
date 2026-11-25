@@ -7,7 +7,7 @@ Shoplens delivers to more than 19,000 pin codes across India, including all metr
 Metro cities (Delhi NCR, Mumbai, Bengaluru, Chennai, Hyderabad, Kolkata, Pune) usually receive orders in 2 to 4 business days. Other cities and towns take 4 to 7 business days. Remote areas can take up to 10 business days. Delivery estimates are shown at checkout and in your order details.
 
 ## Shipping charges
-Shipping is free on orders of ₹499 and above. For orders below ₹499 a flat shipping fee of ₹49 applies. Express delivery is not available at this time.
+Is shipping free? Yes, shipping is free on orders of ₹499 and above, so there is no delivery charge on those orders. For orders below ₹499 a flat shipping fee of ₹49 applies (the shipping cost, delivery fee or delivery charge). Express delivery is not available at this time.
 
 ## Tracking your order
 Once your order ships we send an SMS and email with a tracking link. You can also see the current status and expected delivery date under Orders in your account, or ask our support assistant "where is my order".
