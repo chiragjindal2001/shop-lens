@@ -2,13 +2,12 @@ import type { ConversationDto, MessageDto, SendMessageInput } from '@shared';
 import { ConflictError, NotFoundError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
 import type { Agent } from '../ai/agent';
-import { trimHistory } from '../ai/history-trimmer';
+import { DEFAULT_HISTORY, trimHistory, type HistoryOptions } from '../ai/history-trimmer';
 import type { Conversation, ConversationRepository } from './conversation.repository';
 import type { Message, MessageRepository } from './message.repository';
 import type { SseWriter } from './sse';
 
 const TITLE_MAX = 60;
-const HISTORY_FETCH = 12;
 
 export const toConversationDto = (c: Conversation): ConversationDto => ({
   id: c.id,
@@ -38,6 +37,8 @@ export class ChatService {
     private readonly agent: Agent,
     /** Development mode only: emit, store and return per-reply token usage and cost. */
     private readonly devMode = false,
+    /** How much history is sent to the model (HISTORY_MAX_MESSAGES / HISTORY_MAX_CHARS). */
+    private readonly history: HistoryOptions = DEFAULT_HISTORY,
   ) {}
 
   /**
@@ -86,10 +87,10 @@ export class ChatService {
       replyTo: userMessage.id,
     });
 
-    const recent = (await this.messages.listRecent(userId, conversation.id, HISTORY_FETCH)).filter(
+    const recent = (await this.messages.listRecent(userId, conversation.id, this.history.maxMessages + 2)).filter(
       (m) => m.id !== assistant.id,
     );
-    const history = trimHistory(recent);
+    const history = trimHistory(recent, this.history);
 
     const sse = openSse();
     sse.send({ event: 'meta', data: { conversationId: conversation.id, messageId: assistant.id } });

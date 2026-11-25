@@ -1,6 +1,5 @@
 import type { Request, Response } from 'express';
 import type { AuthResult, AuthService } from './auth.service';
-import { REFRESH_TTL_SECONDS } from './token.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
 
@@ -8,6 +7,8 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly secureCookies: boolean,
+    /** Cookie lifetime = refresh token lifetime (REFRESH_TOKEN_TTL). */
+    private readonly refreshTtlSeconds: number,
   ) {}
 
   signup = async (req: Request, res: Response) => {
@@ -35,7 +36,7 @@ export class AuthController {
   private respond(res: Response, result: AuthResult) {
     res.cookie(REFRESH_COOKIE, result.refreshToken, {
       ...this.cookieOptions(),
-      maxAge: REFRESH_TTL_SECONDS * 1000,
+      maxAge: this.refreshTtlSeconds * 1000,
     });
     return { accessToken: result.accessToken, user: result.user };
   }

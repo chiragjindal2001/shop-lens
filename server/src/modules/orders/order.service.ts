@@ -2,7 +2,7 @@ import { NotFoundError } from '../../lib/errors';
 import type { NewOrder, Order, OrderRepository } from './order.repository';
 import type { ReturnRequest, ReturnRequestRepository } from './return-request.repository';
 
-export const RETURN_WINDOW_DAYS = 10;
+export const DEFAULT_RETURN_WINDOW_DAYS = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface ReturnEligibility {
@@ -22,8 +22,15 @@ export class OrderService {
   constructor(
     private readonly orders: OrderRepository,
     private readonly returns: ReturnRequestRepository,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+    private readonly opts: { returnWindowDays?: number; now?: () => Date } = {},
+  ) {
+    this.returnWindowDays = opts.returnWindowDays ?? DEFAULT_RETURN_WINDOW_DAYS;
+    this.now = opts.now ?? (() => new Date());
+  }
+
+  /** 10 days in production (see DEFAULT_RETURN_WINDOW_DAYS). The constructor option exists so tests can vary it. */
+  readonly returnWindowDays: number;
+  private readonly now: () => Date;
 
   list(userId: string, limit = 5): Promise<Order[]> {
     return this.orders.listByUser(userId, Math.min(Math.max(limit, 1), 10));
@@ -74,10 +81,10 @@ export class OrderService {
       return { eligible: false, reason: `Order ${order.orderNumber} is ${describeStatus(order.status)}; only delivered orders can be returned.` };
     }
     const daysSince = Math.floor((this.now().getTime() - order.deliveredAt.getTime()) / DAY_MS);
-    if (daysSince > RETURN_WINDOW_DAYS) {
-      return { eligible: false, reason: `The ${RETURN_WINDOW_DAYS}-day return window ended ${daysSince - RETURN_WINDOW_DAYS} day(s) ago.` };
+    if (daysSince > this.returnWindowDays) {
+      return { eligible: false, reason: `The ${this.returnWindowDays}-day return window ended ${daysSince - this.returnWindowDays} day(s) ago.` };
     }
-    return { eligible: true, reason: `Delivered ${daysSince} day(s) ago, within the ${RETURN_WINDOW_DAYS}-day return window.` };
+    return { eligible: true, reason: `Delivered ${daysSince} day(s) ago, within the ${this.returnWindowDays}-day return window.` };
   }
 }
 

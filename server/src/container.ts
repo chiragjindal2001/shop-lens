@@ -53,9 +53,13 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
       ? new MockLlmClient(0, config.EMBEDDING_DIMENSIONS)
       : new ResilientLlm(
           new OpenRouterClient({ apiKey: config.OPENROUTER_API_KEY, models: config.LLM_MODELS, embeddingModel: config.EMBEDDING_MODEL, maxTokens: config.LLM_MAX_TOKENS, referer: config.CLIENT_ORIGIN }),
+          { timeoutMs: config.llmTimeoutMs, retries: config.LLM_MAX_RETRIES, baseDelayMs: 500 },
         ));
 
-  const tokens = new TokenService({ access: config.JWT_ACCESS_SECRET, refresh: config.JWT_REFRESH_SECRET });
+  const tokens = new TokenService(
+    { access: config.JWT_ACCESS_SECRET, refresh: config.JWT_REFRESH_SECRET },
+    { accessSeconds: config.accessTokenTtlSeconds, refreshSeconds: config.refreshTokenTtlSeconds },
+  );
   const orders = new OrderService(repos.orders, repos.returns);
   const tickets = new TicketService(repos.tickets);
   const auth = new AuthService(repos.users, repos.sessions, tokens, orders, config.BCRYPT_COST);
@@ -72,7 +76,13 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     createSupportTicketTool(tickets),
     searchPoliciesTool(knowledge),
   ]);
-  const chat = new ChatService(repos.conversations, repos.messages, new Agent(llm, registry), config.NODE_ENV === 'development');
+  const chat = new ChatService(
+    repos.conversations,
+    repos.messages,
+    new Agent(llm, registry, { maxToolRounds: config.MAX_TOOL_ROUNDS }),
+    config.NODE_ENV === 'development',
+    { maxMessages: config.HISTORY_MAX_MESSAGES, maxChars: config.HISTORY_MAX_CHARS },
+  );
 
   return { config, tokens, auth, orders, tickets, chat, ingest, knowledge: repos.knowledge, health: overrides.health ?? pingMongo };
 }

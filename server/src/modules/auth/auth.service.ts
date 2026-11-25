@@ -3,7 +3,7 @@ import type { AuthResponse, LoginInput, SignupInput, UserDto } from '@shared';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../../lib/errors';
 import type { OrderService } from '../orders/order.service';
 import type { SessionRepository } from './session.repository';
-import { REFRESH_TTL_SECONDS, type TokenService } from './token.service';
+import type { TokenService } from './token.service';
 import type { User, UserRepository } from './user.repository';
 
 export const DEMO_EMAIL = 'demo@shoplens.in';
@@ -57,7 +57,7 @@ export class AuthService {
       sessionId,
       hash,
       this.tokens.hashRefresh(newToken),
-      new Date(Date.now() + REFRESH_TTL_SECONDS * 1000),
+      new Date(Date.now() + this.tokens.refreshTtlSeconds * 1000),
     );
     if (!rotated) {
       // A previously-used (possibly stolen) token was replayed: kill the whole session.
@@ -102,7 +102,7 @@ export class AuthService {
     const session = await this.sessions.create({
       userId: user.id,
       refreshTokenHash: 'pending',
-      expiresAt: new Date(Date.now() + REFRESH_TTL_SECONDS * 1000),
+      expiresAt: new Date(Date.now() + this.tokens.refreshTtlSeconds * 1000),
     });
     const refreshToken = this.tokens.signRefresh(user.id, session.id);
     const rotated = await this.sessions.rotate(

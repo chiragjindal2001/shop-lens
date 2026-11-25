@@ -35,7 +35,7 @@ export function createApp(c: Container): Express {
     const db = await c.health();
     res.status(db ? 200 : 503).json({ status: db ? 'ok' : 'degraded', db });
   });
-  api.use('/auth', authRoutes(new AuthController(c.auth, config.COOKIE_SECURE ?? isProd), mw));
+  api.use('/auth', authRoutes(new AuthController(c.auth, config.COOKIE_SECURE ?? isProd, config.refreshTokenTtlSeconds), mw));
   api.use('/chat', chatRoutes(new ChatController(c.chat), mw));
   api.use(notFoundHandler);
   app.use('/api', api);

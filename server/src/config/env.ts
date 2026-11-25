@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseDurationSeconds } from '../lib/duration';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -16,6 +17,10 @@ const envSchema = z.object({
   MONGO_OPTIONS: z.string().default(''),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 chars'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
+  /** How long an access token is valid, e.g. 15m, 1h. Allowed: 1m to 1d. */
+  ACCESS_TOKEN_TTL: z.string().default('15m'),
+  /** How long a refresh token (the login session) lasts without use, e.g. 7d, 30d. Allowed: up to 90d. */
+  REFRESH_TOKEN_TTL: z.string().default('7d'),
   OPENROUTER_API_KEY: z.string().default(''),
   LLM_MODELS: z
     .string()
@@ -30,6 +35,19 @@ const envSchema = z.object({
   KB_DIR: z.string().optional(),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   LLM_PROVIDER: z.enum(['openrouter', 'mock']).default('openrouter'),
+  /** Rate limits. Windows are durations like 1m or 15m. */
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
+  RATE_LIMIT_AUTH_WINDOW: z.string().default('15m'),
+  RATE_LIMIT_CHAT_MAX: z.coerce.number().int().min(1).default(20),
+  RATE_LIMIT_CHAT_WINDOW: z.string().default('1m'),
+  /** How much recent chat history is sent to the model on every call. */
+  HISTORY_MAX_MESSAGES: z.coerce.number().int().min(1).max(50).default(10),
+  HISTORY_MAX_CHARS: z.coerce.number().int().min(500).max(100_000).default(12_000),
+  /** Max tool-calling rounds the agent may run per reply. */
+  MAX_TOOL_ROUNDS: z.coerce.number().int().min(1).max(10).default(4),
+  /** Silence allowed from the model before a call is cancelled and retried (e.g. 30s). */
+  LLM_TIMEOUT: z.string().default('30s'),
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   /** Upper bound on output tokens per model call (output tokens cost the most). */
   LLM_MAX_TOKENS: z.coerce.number().int().min(1).default(500),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
@@ -44,6 +62,12 @@ export type Config = z.infer<typeof envSchema> & {
   mongoUri: string;
   /** Effective relevance threshold for search_policies. */
   kbMinScore: number;
+  /** ACCESS_TOKEN_TTL in seconds. */
+  accessTokenTtlSeconds: number;
+  /** REFRESH_TOKEN_TTL in seconds. */
+  refreshTokenTtlSeconds: number;
+  /** LLM_TIMEOUT in milliseconds. */
+  llmTimeoutMs: number;
   rateLimits: {
     auth: { windowMs: number; limit: number };
     chat: { windowMs: number; limit: number };
@@ -63,14 +87,41 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (cfg.LLM_PROVIDER === 'openrouter' && !cfg.OPENROUTER_API_KEY && cfg.NODE_ENV !== 'test') {
     throw new Error('Invalid environment configuration:\n  - OPENROUTER_API_KEY is required unless LLM_PROVIDER=mock');
   }
+  const accessTtl = parseDurationSeconds(cfg.ACCESS_TOKEN_TTL);
+  const refreshTtl = parseDurationSeconds(cfg.REFRESH_TOKEN_TTL);
+  const configProblems: string[] = [];
+  const windowSeconds = (name: string, value: string): number => {
+    const seconds = parseDurationSeconds(value);
+    if (seconds === null || seconds < 1 || seconds > 86_400) {
+      configProblems.push(name + ' must look like 30s, 15m or 1h (at most 1d)');
+      return 0;
+    }
+    return seconds;
+  };
+  const authWindow = windowSeconds('RATE_LIMIT_AUTH_WINDOW', cfg.RATE_LIMIT_AUTH_WINDOW);
+  const chatWindow = windowSeconds('RATE_LIMIT_CHAT_WINDOW', cfg.RATE_LIMIT_CHAT_WINDOW);
+  const llmTimeout = parseDurationSeconds(cfg.LLM_TIMEOUT);
+  if (llmTimeout === null || llmTimeout < 5 || llmTimeout > 300) configProblems.push('LLM_TIMEOUT must look like 30s or 2m (between 5s and 5m)');
+  if (accessTtl === null) configProblems.push('ACCESS_TOKEN_TTL must look like 30m, 1h or 1d');
+  else if (accessTtl < 60 || accessTtl > 86_400) configProblems.push('ACCESS_TOKEN_TTL must be between 1m and 1d');
+  if (refreshTtl === null) configProblems.push('REFRESH_TOKEN_TTL must look like 12h, 7d or 30d');
+  else if (refreshTtl > 90 * 86_400) configProblems.push('REFRESH_TOKEN_TTL must be at most 90d');
+  else if (accessTtl !== null && refreshTtl < accessTtl) configProblems.push('REFRESH_TOKEN_TTL must not be shorter than ACCESS_TOKEN_TTL');
+  if (configProblems.length > 0) {
+    throw new Error('Invalid environment configuration:\n' + configProblems.map((p) => '  - ' + p).join('\n'));
+  }
+
   return {
     ...cfg,
+    llmTimeoutMs: (llmTimeout ?? 30) * 1000,
+    accessTokenTtlSeconds: accessTtl!,
+    refreshTokenTtlSeconds: refreshTtl!,
     mongoUri: buildMongoUri(cfg),
     // Real embeddings score related text ~0.4+; the mock's hashed bag-of-words scores lower.
     kbMinScore: cfg.KB_MIN_SCORE ?? (cfg.LLM_PROVIDER === 'mock' ? 0.12 : 0.35),
     rateLimits: {
-      auth: { windowMs: 15 * 60_000, limit: 10 },
-      chat: { windowMs: 60_000, limit: 20 },
+      auth: { windowMs: authWindow * 1000, limit: cfg.RATE_LIMIT_AUTH_MAX },
+      chat: { windowMs: chatWindow * 1000, limit: cfg.RATE_LIMIT_CHAT_MAX },
     },
   };
 }

@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from '../../lib/errors';
 
-export const ACCESS_TTL_SECONDS = 15 * 60;
-export const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const DEFAULT_ACCESS_TTL_SECONDS = 15 * 60;
+export const DEFAULT_REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export interface RefreshClaims {
   userId: string;
@@ -11,12 +11,22 @@ export interface RefreshClaims {
 }
 
 export class TokenService {
-  constructor(private readonly secrets: { access: string; refresh: string }) {}
+  /** Configurable through ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL (see config/env.ts). */
+  readonly accessTtlSeconds: number;
+  readonly refreshTtlSeconds: number;
+
+  constructor(
+    private readonly secrets: { access: string; refresh: string },
+    ttl: { accessSeconds?: number; refreshSeconds?: number } = {},
+  ) {
+    this.accessTtlSeconds = ttl.accessSeconds ?? DEFAULT_ACCESS_TTL_SECONDS;
+    this.refreshTtlSeconds = ttl.refreshSeconds ?? DEFAULT_REFRESH_TTL_SECONDS;
+  }
 
   signAccess(userId: string): string {
     return jwt.sign({}, this.secrets.access, {
       subject: userId,
-      expiresIn: ACCESS_TTL_SECONDS,
+      expiresIn: this.accessTtlSeconds,
       algorithm: 'HS256',
     });
   }
@@ -35,7 +45,7 @@ export class TokenService {
   signRefresh(userId: string, sessionId: string): string {
     return jwt.sign({ sid: sessionId }, this.secrets.refresh, {
       subject: userId,
-      expiresIn: REFRESH_TTL_SECONDS,
+      expiresIn: this.refreshTtlSeconds,
       algorithm: 'HS256',
       jwtid: randomUUID(),
     });

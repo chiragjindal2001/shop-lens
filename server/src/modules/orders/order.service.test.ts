@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NotFoundError } from '../../lib/errors';
 import { startTestEnv, type TestEnv } from '../../../tests/helpers/test-container';
-import { OrderService, RETURN_WINDOW_DAYS } from './order.service';
+import { DEFAULT_RETURN_WINDOW_DAYS as RETURN_WINDOW_DAYS, OrderService } from './order.service';
 
 let env: TestEnv;
 let svc: OrderService;

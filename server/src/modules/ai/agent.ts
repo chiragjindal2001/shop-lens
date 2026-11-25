@@ -4,7 +4,7 @@ import type { LlmClient, LlmMessage } from './llm-client';
 import { SYSTEM_PROMPT } from './prompts/system.prompt';
 import type { ToolRegistry } from './tools/registry';
 
-export const MAX_TOOL_ROUNDS = 4;
+export const DEFAULT_MAX_TOOL_ROUNDS = 4;
 
 export interface AgentRunInput {
   userId: string;
@@ -28,11 +28,13 @@ export class Agent {
   constructor(
     private readonly llm: LlmClient,
     private readonly tools: ToolRegistry,
+    /** Configurable through MAX_TOOL_ROUNDS. */
+    private readonly opts: { maxToolRounds?: number } = {},
   ) {}
 
   /**
    * The model picks tools, the server runs them scoped to the authenticated user, results go back to
-   * the model, and the final answer streams out. Capped at MAX_TOOL_ROUNDS tool rounds.
+   * the model, and the final answer streams out. Capped at `maxToolRounds` tool rounds (default 4).
    */
   async run(input: AgentRunInput): Promise<AgentRunResult> {
     const started = Date.now();
@@ -53,8 +55,9 @@ export class Agent {
       input.onToken(t);
     };
 
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const allowTools = round < MAX_TOOL_ROUNDS; // last pass forces a plain answer
+    const maxRounds = this.opts.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
+    for (let round = 0; round <= maxRounds; round++) {
+      const allowTools = round < maxRounds; // last pass forces a plain answer
       const res = await this.llm.chat({
         messages,
         tools: allowTools ? this.tools.specs() : undefined,

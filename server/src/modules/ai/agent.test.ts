@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { LlmChatRequest, LlmChatResponse, LlmClient } from './llm-client';
-import { Agent, MAX_TOOL_ROUNDS } from './agent';
+import { Agent, DEFAULT_MAX_TOOL_ROUNDS } from './agent';
 import { ToolRegistry } from './tools/registry';
 import { defineTool } from './tools/tool.types';
 
@@ -67,7 +67,7 @@ describe('Agent', () => {
     const loop = { toolCalls: [{ id: 'x', name: 'echo', arguments: '{"text":"again"}' }] };
     const llm = scripted([loop, loop, loop, loop, { content: 'Final' }]);
     const res = await new Agent(llm, new ToolRegistry([echo])).run(input());
-    expect(res.toolCalls).toHaveLength(MAX_TOOL_ROUNDS);
+    expect(res.toolCalls).toHaveLength(DEFAULT_MAX_TOOL_ROUNDS);
     expect(llm.requests.at(-1)!.tools).toBeUndefined();
     expect(res.content).toContain('Final');
   });
