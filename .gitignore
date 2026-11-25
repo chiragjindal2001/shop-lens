@@ -7,5 +7,6 @@ coverage
 *.log
 .vscode/*
 !.vscode/launch.json
+!.vscode/extensions.json
 playwright-report
 test-results
