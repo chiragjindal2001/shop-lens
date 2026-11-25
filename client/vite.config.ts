@@ -5,7 +5,13 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)) } },
+  resolve: {
+    alias: [
+      { find: /^@shared$/, replacement: fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)) },
+      // e.g. '@shared/limits': a single zod-free file, so pages that need one constant don't load zod
+      { find: /^@shared\/(.+)$/, replacement: fileURLToPath(new URL('../shared/src', import.meta.url)) + '/$1' },
+    ],
+  },
   server: {
     port: 5173,
     // Dev: Vite and Express run separately; /api is forwarded so the browser still sees one origin.

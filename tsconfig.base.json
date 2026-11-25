@@ -10,7 +10,13 @@
     "isolatedModules": true,
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
-    "paths": { "@shared": ["shared/src/index.ts"] }
+    "paths": {
+      "@shared": [
+        "./shared/src/index.ts"
+      ],
+      "@shared/*": [
+        "./shared/src/*"
+      ]
+    }
   }
 }

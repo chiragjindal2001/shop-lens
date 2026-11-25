@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { MAX_MESSAGE_LENGTH } from '../limits';
 
-export const MAX_MESSAGE_LENGTH = 2000;
+export { MAX_MESSAGE_LENGTH };
 
 export const sendMessageSchema = z.object({
   conversationId: z.string().min(1).max(64).optional(),
