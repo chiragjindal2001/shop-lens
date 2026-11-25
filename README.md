@@ -1,195 +1,215 @@
-# Shoplens: AI customer support agent
+# Shoplens
 
-An AI support chat for a fictional Indian electronics store. Customers sign up, chat with an assistant that
-streams its replies, and the assistant acts on the **logged-in user's own orders** through tools (status,
-returns, cancellations, human escalation).
+**Shoplens is an AI customer-support assistant for an online electronics store in India.**
 
-- **Live demo:** _add deployed link_
-- **Walkthrough (Loom):** _add link_
-- **Demo login:** `demo@shoplens.in` / `Demo@1234` (or press **Try the demo account** on the login page)
+Customers sign up, open a chat and ask questions in plain language. The assistant:
 
-> **Status:** the full build plan is implemented, including RAG over the store policies. Policy answers come
-> from `server/kb/*.md` via the `search_policies` tool and show a "Source: …" tag in the UI.
+- **Answers store-policy questions using RAG** (retrieval-augmented generation): shipping, returns and refunds, payments and COD, warranty and account help are answered from the store's own policy documents, found by vector search in MongoDB Atlas. Each answer shows which document it came from.
+- **Looks up and acts on the customer's own orders**: order status, return eligibility, starting a return, cancelling an order.
+- **Hands off to a human** by creating a support ticket with a ticket number.
+- **Streams replies** word by word, and keeps every customer's chat history private to them.
 
-## Features
+It stays on store topics, never shows one customer's orders to another, and says "I don't know" instead of guessing.
 
-- [x] JWT signup / login / logout, bcrypt (cost 12), protected routes (client and server)
-- [x] Chat with streamed AI replies (real token streaming over SSE), typing/tool-status indicator
-- [x] MongoDB chat history scoped per user, past conversations sidebar, delete conversation
-- [x] Required endpoints: `/auth/signup`, `/auth/login`, `/chat/send`, `/chat/history`
-- [x] Tool calling: orders, return eligibility, return requests, cancellation, support tickets
-- [x] Idempotent sends, partial-reply saving on disconnect, LLM timeout / retry / model fallback
-- [x] `express-rate-limit` (auth by IP, chat by user), helmet, strict CORS, Zod validation everywhere
-- [x] Docker Compose (the app container, talking to MongoDB Atlas), dev/prod config, `.env.example` files, CI
-- [x] RAG: policy knowledge base (Markdown → chunks → embeddings → Atlas Vector Search), source tags on answers
+**Demo login:** `demo@shoplens.in` / `Demo@1234` (or press **Try the demo account** on the login page). Every new account also gets four sample orders.
 
-Beyond the brief's two auth endpoints, `/auth/refresh`, `/auth/logout` and `/auth/me` are deliberate: they
-make the httpOnly-cookie refresh flow and real (server-side) logout possible.
+## What you'll see
 
-## Quick start
+- **Home page (left):** a Shoplens storefront with a hero, quick-question cards (is shipping free? what's the return policy?
+  is COD available? what warranty do products have?), **your recent orders**, popular products and popular questions. Every button that says
+  "Track", "Return", "Ask about this" or shows a question simply asks the assistant for you. Cancelling an order
+  needs a second, explicit click.
+- **AI assistant (right panel):** the chat lives beside the page, with a **History** button for past
+  conversations and **New chat**. On a phone it becomes a slide-over opened from the "Ask Shoplens" button.
+- **Resizable assistant:** drag the divider between the page and the assistant (or focus it and use the arrow
+  keys; Home/End for min/max). Double-click resets it, and your width is remembered.
+- **Helpful details:** hover any icon (for example the clock) for a label, and every clickable element shows the pointer cursor.
+- **Light and dark themes:** the sun/moon button in the top bar cycles light, dark and follow-the-system.
+- **Sign-in screens:** a one-click **Try the demo account** button (also on the signup page), a preview of the assistant
+  answering a question, and inline validation. If the server is waking up from sleep on free hosting, the button says
+  "Waking up the server, this can take up to a minute…" instead of showing a silent spinner.
+- **Fast by design:** screens are code-split, the markdown renderer loads on demand, streamed text is applied
+  once per animation frame, and the app uses system fonts and inline icons (no web-font or icon downloads).
 
-```bash
-cp server/.env.example server/.env   # fill in your Atlas MONGO_* values, JWT secrets and OPENROUTER_API_KEY
-                                     # (or set LLM_PROVIDER=mock for scripted replies without a key)
-docker compose up --build
-# open http://localhost:8080
-```
+## Setup
 
-Docker reads the same `server/.env` as the dev server (no local MongoDB container: it uses your Atlas cluster).
-Make sure Atlas **Network Access** allows your IP.
+You need **Node 24+**, a **MongoDB Atlas** cluster (the free tier works) and an **OpenRouter** API key.
 
-Manual dev setup (Node 24+):
+### 1. Configure
 
 ```bash
 npm install
-cp server/.env.example server/.env     # fill in OPENROUTER_API_KEY, or LLM_PROVIDER=mock
+cp server/.env.example server/.env
 cp client/.env.example client/.env
-npm run dev:server                     # http://localhost:4000
-npm run dev:client                     # http://localhost:5173 (proxies /api to :4000)
 ```
 
-Server startup is idempotent: it creates indexes and seeds the demo user. New signups also get 4 mock orders
-(`SE1039`–`SE1042`) so the tools have real data: one return-eligible, one shipped, one cancellable, one
-outside the return window.
+Fill in `server/.env`:
 
-### Environment variables (`server/.env.example`)
-
-| Variable | Purpose |
+| Variable | What to put |
 |---|---|
-| `MONGO_HOST`, `MONGO_PORT` | MongoDB host and port (port ignored when `MONGO_SRV=true`) |
-| `MONGO_DB_NAME` | Database name |
-| `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_AUTH_SOURCE` | Credentials (leave empty only for a MongoDB without auth); the password is URL-encoded for you |
-| `MONGO_SRV` | `true` for Atlas `mongodb+srv://` hosts |
-| `MONGO_OPTIONS` | Extra options, e.g. `retryWrites=true&w=majority` on Atlas, or `directConnection=true` for a single local mongod |
-| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Two different secrets, 32+ chars each |
-| `OPENROUTER_API_KEY` | Required unless `LLM_PROVIDER=mock` |
-| `LLM_MODELS` | Comma-separated: first is primary, the rest are OpenRouter fallbacks |
-| `LLM_MAX_TOKENS` | Max output tokens per model call (default 500). Caps reply length and cost; a reply that hits it is cut off and a warning is logged |
-| `EMBEDDING_MODEL` | Embedding model for RAG (default `openai/text-embedding-3-small`) |
-| `EMBEDDING_DIMENSIONS` | Vector size; must match the model and the vector index (default 1536) |
-| `KB_MIN_SCORE` | Optional. Minimum cosine similarity for a chunk to count as relevant (default 0.35; 0.12 with the mock) |
-| `KB_DIR` | Optional. Knowledge-base folder (default `./kb` or `./server/kb`) |
-| `CLIENT_ORIGIN` | Allowed CORS origin |
-| `LLM_PROVIDER` | `openrouter` (default) or `mock` |
-| `TRUST_PROXY` | Proxies in front of Express (Vercel + Render = 2). Needed for correct per-IP limits |
-| `COOKIE_SECURE` | Defaults to true in production; `false` for plain-http hosting (local compose) |
-| `NODE_ENV`, `PORT` | Standard. Invalid config fails fast at boot with a readable message |
+| `MONGO_SRV` | `true` for Atlas |
+| `MONGO_HOST` | Your cluster host, e.g. `my-cluster.abc12.mongodb.net` |
+| `MONGO_DB_NAME` | `shoplens` (created automatically) |
+| `MONGO_USER`, `MONGO_PASSWORD` | A database user from Atlas **Database Access** (not your Atlas login) |
+| `MONGO_OPTIONS` | `retryWrites=true&w=majority` |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Two different random strings, 32+ chars (`openssl rand -base64 48`) |
+| `OPENROUTER_API_KEY` | Your OpenRouter key (needs a little credit for embeddings and chat) |
+| `LLM_MODELS` | e.g. `openai/gpt-4o-mini,google/gemini-2.0-flash-001` (first is primary, the rest are fallbacks) |
 
-`client/.env.example`: `VITE_API_BASE_URL` (default `/api`; keep it relative so the cookie stays first-party).
+Leave `MONGO_PORT` out (Atlas doesn't use one). In Atlas, add your IP under **Network Access**.
+No API key yet? Set `LLM_PROVIDER=mock` to try the app with scripted replies.
 
-## Architecture
+Optional settings in `server/.env` (defaults in brackets):
 
-```
-Browser ──► one origin ──► Express (API + built client) ──► MongoDB   (users, sessions, conversations,
-                                   │                                  messages, orders, returns, tickets)
-                                   └──────────────────────► OpenRouter (chat, with fallback models)
-```
+| Variable | Meaning |
+|---|---|
+| `LLM_PROVIDER` | `openrouter` (default) or `mock` (scripted replies, no key needed) |
+| `CLIENT_ORIGIN` | The browser origin the API allows (`http://localhost:5173`). Set it to your site's URL when deployed |
+| `ACCESS_TOKEN_TTL` | How long an access token is valid, e.g. `15m`, `1h` (`15m`; allowed 1m to 1d) |
+| `REFRESH_TOKEN_TTL` | How long a login lasts without use, e.g. `7d`, `30d` (`7d`; up to 90d). Each use renews it |
+| `LLM_MAX_TOKENS` | Max output tokens per model call (`500`) |
+| `KB_MIN_SCORE` | Relevance threshold for policy search, -1 to 1 (`0.35`) |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | Embedding model and its vector size (`openai/text-embedding-3-small`, `1536`) |
+| `BCRYPT_COST` | Password hashing cost (`12`) |
+| `API_DOCS` | Serve Swagger UI at `/api/docs` (on in dev, off in production) |
+| `TRUST_PROXY` | Number of proxies in front of the server (`0`; use `1` behind Render) |
+| `COOKIE_SECURE` | Secure refresh cookie (on in production; set `false` for plain http) |
+| `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW` | Login/signup attempts per IP per window (`10`, `15m`) |
+| `RATE_LIMIT_CHAT_MAX`, `RATE_LIMIT_CHAT_WINDOW` | Chat messages per user per window (`20`, `1m`) |
+| `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_CHARS` | Recent chat history sent to the model on each call (`10` messages, `12000` characters). Lower = cheaper, but the assistant remembers less |
+| `MAX_TOOL_ROUNDS` | Max tool-calling rounds per reply (`4`) |
+| `LLM_TIMEOUT`, `LLM_MAX_RETRIES` | Silence allowed from the model before a call is cancelled and retried, and how many retries (`30s`, `2`) |
 
-Request flow for one chat message:
-
-1. The client `POST`s `/api/chat/send` with the access token and an idempotency key (UUID per message).
-2. Middleware authenticates, applies the per-user rate limit and validates the body (Zod, max 2,000 chars).
-3. The service saves the user message, creates a placeholder assistant message and opens the SSE stream.
-4. The agent loop calls the LLM; tool calls run through `userId`-scoped services or the knowledge base (max 4 tool rounds).
-5. Tokens stream to the browser as they arrive (`meta`, `tool`, `token`, `sources`, `done`, `error` events).
-6. The final reply, tool calls and status (`complete` / `partial` / `error`) are saved.
-
-### Code organisation
-
-`routes → controller → service → repository interface → infra adapter`. Dependencies only point that way.
-
-- `server/src/modules/*` is business logic and **may not import a database or LLM vendor**. ESLint
-  (`no-restricted-imports`) enforces this: Mongoose is only allowed inside `server/src/infra/`.
-- `server/src/container.ts` is the composition root, the single place that picks implementations. Moving to
-  Postgres means a new adapter set plus one change here, and it must pass the same contract suites.
-- Repositories take `userId` as a **required** parameter on every user-owned method, so tenant isolation is
-  part of the interface contract, not a convention.
-- `shared/` holds the Zod schemas, DTOs and SSE event types used by both client and server (consumed as
-  TypeScript source through the `@shared` alias).
-
-## RAG (policy knowledge base)
-
-- **Content:** `server/kb/{shipping,returns,payments,warranty,account}.md`. Edit these, then run
-  `npm run ingest -w server` (once per change, never per request). On startup the server also ingests
-  automatically when the `kbChunks` collection is empty.
-- **Pipeline:** split by heading (~200-400 tokens per chunk) → embed all chunks in batches
-  (`EMBEDDING_MODEL`) → store in `kbChunks` → Atlas vector index `kb_vector_index` (cosine, 1536 dims, created
-  at startup).
-- **Retrieval is a tool, not on every message:** the model calls `search_policies` only for policy questions,
-  next to the order tools. The tool embeds the query, runs `$vectorSearch` (`numCandidates: 50`, `limit: 4`),
-  drops results under `KB_MIN_SCORE` and returns the chunks with their source names. The server then emits a
-  `sources` SSE event, so the UI shows "Source: Returns and Refunds Policy" under the answer.
-- **Fallback:** if `$vectorSearch` isn't available (plain MongoDB, index still building) the same code ranks the
-  ~30 chunks in memory by cosine similarity. Output is identical either way.
-- **No-answer behaviour:** when nothing relevant is found the assistant says it doesn't know and offers a ticket.
-- With `LLM_PROVIDER=mock`, deterministic hashed bag-of-words embeddings are used, so RAG works offline.
-
-## API
-
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `POST /api/auth/signup` | no | 409 on duplicate email; sets the refresh cookie; seeds demo orders |
-| `POST /api/auth/login` | no | Always "Invalid email or password" (constant-time against a dummy hash) |
-| `POST /api/auth/refresh` | cookie | Rotates the refresh token; replaying an old one revokes the session |
-| `POST /api/auth/logout` | cookie | Revokes the session, clears the cookie |
-| `GET /api/auth/me` | bearer | Current user |
-| `POST /api/chat/send` | bearer | `{ conversationId?, message, idempotencyKey }` → SSE stream |
-| `GET /api/chat/history` | bearer | Conversations, newest first, `?cursor=&limit=20` |
-| `GET /api/chat/history/:id` | bearer | Messages of one conversation (owner-checked) |
-| `DELETE /api/chat/history/:id` | bearer | Delete a conversation |
-| `GET /api/health` | no | Liveness + Mongo ping |
-
-Errors are `{ "error": { "code", "message", "fields"? } }`.
-
-## Key decisions and trade-offs
-
-- **Access token in memory + 7-day httpOnly refresh cookie** (not localStorage) so XSS can't read a
-  long-lived credential. Refresh tokens are rotated and stored only as hashes in `sessions`.
-- **SSE over WebSockets**: one-way streaming, plain HTTP, works through proxies. The client uses
-  `fetch` + a stream reader because `EventSource` can't `POST` or send an `Authorization` header.
-- **Tools, not prompts, enforce data access.** `userId` comes from the authenticated request and never from
-  model output, so prompt injection can't reach another user's data. Other users' orders return "not found".
-- **Atomic business rules in the adapter, rules in the service.** Cancellation and returns use a generic
-  compare-and-set (`transitionStatus`), so two concurrent requests can't both succeed.
-- **Idempotency**: a unique `{userId, idempotencyKey}` index. Repeating a key replays the stored answer
-  without a second LLM call; retrying after a failed reply reuses the saved user message.
-- **No Redis, no nginx in v1.** The in-memory rate-limit store is fine for one instance (for several, swap in
-  `rate-limit-redis`), and Express serves the built client directly: same origin, one container.
-- **Return window is 10 days** from delivery (`RETURN_WINDOW_DAYS` in `order.service.ts`).
-
-## Security and tenant isolation
-
-helmet headers, CORS limited to `CLIENT_ORIGIN` with credentials, 16 KB body limit, Zod validation on every
-route, separate JWT secrets, generic 500s in production, `.env` git-ignored. Rate limits: auth 10 / 15 min per
-IP; chat 20 / min per user. After deploying, log `req.ip` once to confirm `TRUST_PROXY` shows real client IPs.
-
-`server/tests/integration/isolation.test.ts` proves user A cannot read user B's conversations, messages or
-orders through the API, the repositories **or the AI tools**.
-
-## Testing
+### 2. Run
 
 ```bash
-npm test            # server (Vitest + Supertest on mongodb-memory-server) and client (Vitest + Testing Library)
+npm run dev:server     # API on http://localhost:4000
+npm run dev:client     # UI  on http://localhost:5173  ← open this
+```
+
+On first start the server creates the indexes, seeds the demo user, loads the policy documents
+(`server/kb/*.md`) into Atlas as vectors and creates the vector index (about a minute to become active).
+Look for `bootstrap complete` and `server listening` in the log.
+
+In dev mode each reply also shows its token usage and cost under the message. That line is never shown in production.
+
+### How policy answers work (RAG) and how to change the documents
+
+RAG is implemented end to end:
+
+1. The policy documents are Markdown files in `server/kb/` (`shipping.md`, `returns.md`, `payments.md`,
+   `warranty.md`, `account.md`).
+2. They are split by heading into chunks, turned into embeddings (`EMBEDDING_MODEL`) and stored in the
+   `kbChunks` collection in Atlas, behind the vector index `kb_vector_index`.
+3. When a customer asks a policy question, the assistant searches that index, gets the most relevant
+   passages and answers only from them. If nothing relevant is found, it says it doesn't know and offers a
+   support ticket.
+
+To change what the assistant knows, edit or add `.md` files in `server/kb/` (use a `# Title` and `## Section`
+headings), then re-ingest:
+
+```bash
+npm run ingest -w server
+```
+
+Re-ingesting replaces all chunks and calls the embedding model again (a fraction of a cent). The server also
+ingests automatically on startup if `kbChunks` is empty. Customers can't upload documents through the app yet.
+
+### Or run with Docker
+
+```bash
+docker compose up --build     # UI + API on http://localhost:8080
+```
+
+Docker uses the same `server/.env` and connects to your Atlas cluster.
+
+### Deploy on Render
+
+The same Docker image runs on [Render](https://render.com). Create a **Web Service** from this repo with runtime **Docker**
+(it uses the root `Dockerfile`) and set:
+
+- **Environment variables:** the same keys as `server/.env`, plus `NODE_ENV=production`,
+  `CLIENT_ORIGIN=https://<your-service>.onrender.com` and `TRUST_PROXY=1`. Render provides `PORT` itself.
+- **Health check path:** `/api/health`
+- **MongoDB Atlas:** under **Network Access**, allow Render to connect. Free instances have no fixed outbound IPs, so
+  `0.0.0.0/0` is the practical choice (the database user's password is what protects the data).
+- **Optional:** `API_DOCS=true` exposes Swagger UI at `/api/docs`.
+
+The server also serves the built client, so there is a single URL and the refresh cookie stays first-party. Free
+instances sleep when idle: the first request can take up to a minute, and the sign-in screen explains the wait.
+
+### API docs (Swagger) and Postman
+
+- **Swagger UI:** with the server running, open **http://localhost:4000/api/docs** (or `http://localhost:5173/api/docs`
+  through the Vite dev server, or `http://localhost:8080/api/docs` in Docker). Call `POST /auth/login` with the demo
+  account, copy the `accessToken`, press **Authorize** and paste it, then try any endpoint. The raw OpenAPI 3.1 document
+  is at `/api/openapi.json`. Request schemas are generated from the same Zod schemas the API validates with.
+- **Postman:** import `docs/postman/shoplens.postman_collection.json` and `docs/postman/shoplens.postman_environment.json`,
+  select the **Shoplens - Local** environment, and run **Auth > Login (demo account)**. The collection saves your access
+  token and conversation id automatically, so you can then run the **Chat** requests in order. To point it at Docker,
+  change `baseUrl` to `http://localhost:8080/api`.
+- Swagger UI is on by default in development and **off in production**. Set `API_DOCS=true` to turn it on there
+  (the Docker setup does this for local use).
+
+### Tests
+
+```bash
+npm test                      # server (in-memory MongoDB, mocked LLM) and client
 npm run lint && npm run typecheck
 ```
 
-- Contract suites (`server/tests/contracts`) are written against the repository **interfaces**; any future
-  adapter must pass them.
-- The LLM is mocked in every automated test (`MockLlmClient`: scripted replies and tool calls).
-- `e2e/chat.spec.ts` is one Playwright test (login → chat → reload → history). Run it against
-  `LLM_PROVIDER=mock docker compose up` (set `LLM_PROVIDER=mock` in `server/.env`): `cd e2e && npm i && npx playwright install chromium && npm test`.
-- `$vectorSearch` can't run on mongodb-memory-server, so the Atlas store's in-memory fallback path is what the
-  automated tests exercise; the real `$vectorSearch` path is checked manually against Atlas.
+There is also one Playwright end-to-end test in `e2e/` (login, ask the assistant, reload, find it in History). It runs
+against the Docker setup with `LLM_PROVIDER=mock` in `server/.env`:
 
-## Deployment (free tier)
+```bash
+docker compose up --build -d
+cd e2e && npm install && npx playwright install chromium && npm test
+```
 
-Vercel (client, `client/vercel.json` rewrites `/api/*` to Render) + Render (Docker web service, health check
-`/api/health`) + MongoDB Atlas + OpenRouter. The rewrite keeps the refresh cookie first-party (Safari blocks it
-otherwise). Vercel caps proxied requests at 120 s, so keep a chat turn under ~90 s. Render's free tier sleeps
-after 15 min idle, so the first load may be slow. Edit the Render hostname in `client/vercel.json`.
+## Sample inputs
 
-## Known limitations and what's next
+Log in as the demo user and try these. The demo account has four orders:
 
-- `search_products` (optional) is not built. The relevance threshold (`KB_MIN_SCORE`) is a sensible default, not tuned on real traffic.
-- Refresh-token rotation is strict: two tabs refreshing at the exact same moment can invalidate the session.
-- Org-level tenancy, Redis-backed rate limits, evaluation harness, admin view for tickets and returns.
+| Order | Item | Status |
+|---|---|---|
+| `SE1042` | boAt Airdopes 141 Earbuds + USB-C cable | Delivered 4 days ago (returnable) |
+| `SE1041` | Mi Power Bank 20000mAh | Shipped (cannot be cancelled) |
+| `SE1040` | Logitech M331 Silent Mouse | Packed (can be cancelled) |
+| `SE1039` | Noise ColorFit Smartwatch | Delivered 40 days ago (return window over) |
+
+Order dates are set when an account is created, so the demo account's `SE1042` stops being returnable 10 days
+after the server first started. A brand-new signup always gets fresh sample orders.
+
+**Your orders**
+- `Where's my latest order?`
+- `Show my recent orders`
+- `Where is order SE1041?`
+
+**Products** (answers come from the product catalog, with a "Source: Product catalog" tag; the product cards' "Ask about this" buttons ask the first of these)
+- `Tell me about the boAt Airdopes 141 Earbuds`
+- `What earbuds do you have?`
+- `Show me something under ₹1,000`
+- `Tell me about the Sony WH-1000XM5` → "not in our catalog" (it never invents products)
+
+**Returns and cancellations**
+- `Can I return my earbuds (SE1042)?` → eligible, within the 10-day window
+- `I want to return SE1039` → refused, outside the window
+- `Cancel order SE1040` → works, the order is only packed
+- `Cancel order SE1041` → refused, already shipped
+
+**Store policy questions** (answers show a "Source: …" tag)
+- `What's your return policy?`
+- `Is cash on delivery available?`
+- `Do you deliver to Panipat? Is shipping free?`
+- `What is the warranty on headphones?`
+- `Money was deducted but my payment failed`
+- `How do I reset my password?`
+
+**Escalation**
+- `I want to speak to a human` → creates a support ticket and shares its number
+
+**Things it should refuse or handle carefully**
+- `Where is order SE9999?` → "couldn't find that order" (it never reveals other people's orders)
+- `Who won the cricket world cup?` → politely steers back to store topics
+- `Return my smartwatch SE1039 anyway` → explains the policy and offers a ticket instead of promising an exception
+- `My card number is 4111 1111 1111 1111` → told not to share card details, and it is not repeated back
