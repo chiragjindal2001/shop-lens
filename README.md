@@ -48,29 +48,6 @@ More prompts, including the cases it should refuse, are in [Sample inputs](#samp
   assistant panel (keyboard-accessible), a mobile slide-over, light/dark/system themes, code-split screens and
   system fonts with inline icons.
 
-## Assignment checklist
-
-| Requirement | How Shoplens covers it |
-|---|---|
-| Signup / login / logout with JWT | Short-lived access token kept in memory + rotating refresh token in an httpOnly cookie |
-| Passwords hashed with bcrypt | bcrypt, cost 12 (`BCRYPT_COST`) |
-| Protected routes | `requireAuth` middleware on the API; protected routes with redirect on the client |
-| Chat input + AI responses | Chat panel with streamed replies |
-| Chat history in MongoDB, user-scoped | Conversations and messages stored per user; every query filtered by user ID |
-| Show past conversations | **History** panel |
-| AI integration | OpenRouter, with a fallback model chain |
-| `/auth/signup`, `/auth/login` | `POST /api/auth/signup`, `POST /api/auth/login` (plus `refresh`, `logout`, `me`) |
-| `/chat/send`, `/chat/history` | `POST /api/chat/send` (SSE stream), `GET /api/chat/history` |
-| React frontend, Axios/Fetch, secure token handling | React + Vite + TypeScript + Tailwind; Axios with refresh interceptor; `fetch` stream reader for SSE |
-| Dockerized, works with `docker compose up` | One multi-stage image for client + server; see [Run with Docker](#run-with-docker) |
-| `client/` and `server/` folders, `.env.example` files, README | Yes |
-| Deployed link | https://shop-lens.onrender.com |
-| **Bonus:** typing indicator | Real token streaming plus live tool status ("Checking your orders…") |
-| **Bonus:** rate limiting | express-rate-limit: per IP on auth, per user on chat |
-| **Bonus:** environment switching | Zod-validated config; development and production behave differently (cookies, logs, Swagger, cost display) |
-
----
-
 ## Architecture
 
 ```mermaid
@@ -103,45 +80,6 @@ refresh cookie is first-party and no proxy is needed.
    ID**, never an ID chosen by the model, and returns the result to the model (up to `MAX_TOOL_ROUNDS` rounds).
 5. Tokens, tool status and sources stream to the browser as they happen.
 6. The final reply, its tool calls and its sources are saved to the conversation.
-
-### Project structure
-
-```
-shop-lens/
-├── client/              React + Vite app
-│   └── src/
-│       ├── app/         router, providers
-│       ├── features/    auth, chat, home (components + hooks per feature)
-│       └── lib/         HTTP client, SSE parser, helpers
-├── server/
-│   ├── kb/              policy documents (Markdown) used for RAG
-│   └── src/
-│       ├── modules/     business logic: auth, chat, orders, tickets, knowledge, ai
-│       ├── infra/       the only code that knows MongoDB and OpenRouter
-│       ├── middleware/  auth, rate limits, validation, error handling
-│       ├── container.ts the one place that wires implementations together
-│       └── bootstrap.ts indexes, demo seed and KB ingestion on startup
-├── shared/              Zod schemas and SSE event types used by client and server
-├── e2e/                 Playwright end-to-end test
-└── Dockerfile           one image: builds client + server
-```
-
----
-
-## Key decisions and tradeoffs
-
-| Decision | Why | Tradeoff |
-|---|---|---|
-| **Refresh token in an httpOnly cookie, access token in memory** | Injected scripts can't read the long-lived token; reloads restore the session silently through `/auth/refresh` | Needs a refresh endpoint and same-origin setup |
-| **SSE instead of WebSockets** | Chat replies are one-way streams; SSE works over plain HTTP with no extra infrastructure | No server push outside a request; fine for this use case |
-| **RAG as a tool, not on every message** | The model retrieves policy text only when needed, so order questions don't pay for irrelevant context | Relies on the model choosing the tool; covered by the system prompt and tests |
-| **Policy text in vectors, user data behind tools** | Shared, unstructured knowledge suits similarity search; orders need exact, current, user-scoped lookups | Two retrieval paths to maintain |
-| **Atlas Vector Search** | One database for everything, free on the Atlas free tier, scales without code changes | With ~30 chunks, in-memory search would also work; Atlas was chosen for the growth path |
-| **Repository interfaces between services and MongoDB** | Business logic never touches database APIs, so the database can change without touching services | A little more code than calling Mongoose directly |
-| **One container serving client + API** | Single origin (first-party cookie), one deploy, production matches `docker compose` | The page itself cold-starts on the free tier |
-| **express-rate-limit with the memory store** | Specified by the brief; correct for a single instance | Counters reset on restart; multiple instances would need a shared store such as Redis |
-| **Fallback model chain** | A failing or rate-limited model doesn't take the assistant down | Fallback models can answer slightly differently |
-| **Mock LLM provider** | Deterministic development and tests with no API key or cost | Mock replies don't test prompt quality |
 
 ## Security and data isolation
 
@@ -341,27 +279,49 @@ Every new signup gets its own fresh copy of these sample orders.
 
 ---
 
-## Known limitations
+## Project structure
 
-- **Free-tier hosting:** the service sleeps when idle, so the first request can take up to a minute.
-- **Single instance:** rate-limit counters live in memory and reset on restart.
-- **Open Atlas network access** (`0.0.0.0/0`), because free Render instances have no fixed outbound IPs.
-- **Shared demo account:** actions such as cancelling an order are visible to the next person using it. Signing up
-  gives you a private copy of the sample orders.
-- **Vector search isn't covered by automated tests:** the in-memory MongoDB used in tests doesn't support
-  `$vectorSearch`, so tests use an in-memory similarity search instead, and the Atlas index is verified on the
-  deployed app.
-- **Knowledge base updates** require re-ingestion; customers can't upload documents.
-- **No admin view** for tickets and return requests yet.
-
-## What I'd do next
-
-- Organization-level tenancy: per-tenant knowledge bases, rate limits and model settings.
-- Redis for shared rate limits, exact-match answer caching and a token denylist.
-- An evaluation set of questions with expected tools and sources, run in CI to catch prompt regressions.
-- Prompt caching and leaner tool descriptions to cut the fixed per-message token overhead.
-- An admin dashboard for tickets, returns and conversation review.
+```
+shop-lens/
+├── client/              React + Vite app
+│   └── src/
+│       ├── app/         router, providers
+│       ├── features/    auth, chat, home (components + hooks per feature)
+│       └── lib/         HTTP client, SSE parser, helpers
+├── server/
+│   ├── kb/              policy documents (Markdown) used for RAG
+│   └── src/
+│       ├── modules/     business logic: auth, chat, orders, tickets, knowledge, ai
+│       ├── infra/       the only code that knows MongoDB and OpenRouter
+│       ├── middleware/  auth, rate limits, validation, error handling
+│       ├── container.ts the one place that wires implementations together
+│       └── bootstrap.ts indexes, demo seed and KB ingestion on startup
+├── shared/              Zod schemas and SSE event types used by client and server
+├── e2e/                 Playwright end-to-end test
+└── Dockerfile           one image: builds client + server
+```
 
 ---
 
-Built by **Chirag Jindal** · [GitHub](https://github.com/chiragjindal2001) · [LinkedIn](https://linkedin.com/in/chirag-jindal-957235193)
+## Assignment checklist
+
+| Requirement | How Shoplens covers it |
+|---|---|
+| Signup / login / logout with JWT | Short-lived access token kept in memory + rotating refresh token in an httpOnly cookie |
+| Passwords hashed with bcrypt | bcrypt, cost 12 (`BCRYPT_COST`) |
+| Protected routes | `requireAuth` middleware on the API; protected routes with redirect on the client |
+| Chat input + AI responses | Chat panel with streamed replies |
+| Chat history in MongoDB, user-scoped | Conversations and messages stored per user; every query filtered by user ID |
+| Show past conversations | **History** panel |
+| AI integration | OpenRouter, with a fallback model chain |
+| `/auth/signup`, `/auth/login` | `POST /api/auth/signup`, `POST /api/auth/login` (plus `refresh`, `logout`, `me`) |
+| `/chat/send`, `/chat/history` | `POST /api/chat/send` (SSE stream), `GET /api/chat/history` |
+| React frontend, Axios/Fetch, secure token handling | React + Vite + TypeScript + Tailwind; Axios with refresh interceptor; `fetch` stream reader for SSE |
+| Dockerized, works with `docker compose up` | One multi-stage image for client + server; see [Run with Docker](#run-with-docker) |
+| `client/` and `server/` folders, `.env.example` files, README | Yes |
+| Deployed link | https://shop-lens.onrender.com |
+| **Bonus:** typing indicator | Real token streaming plus live tool status ("Checking your orders…") |
+| **Bonus:** rate limiting | express-rate-limit: per IP on auth, per user on chat |
+| **Bonus:** environment switching | Zod-validated config; development and production behave differently (cookies, logs, Swagger, cost display) |
+
+---
