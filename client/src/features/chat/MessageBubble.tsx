@@ -1,14 +1,26 @@
-import Markdown from 'react-markdown';
-import { Button } from '../../components/ui/Button';
+import { lazy, memo, Suspense } from 'react';
 import type { UsageDto } from '@shared';
-import type { UiMessage } from './useChatStream';
+import { Button } from '../../components/ui/Button';
+import { LogoMark } from '../../components/ui/Logo';
 import { ToolStatus } from './ToolStatus';
+import type { UiMessage } from './useChatStream';
 
-export function MessageBubble({ message, onRetry }: { message: UiMessage; onRetry?: () => void }) {
+// The markdown parser is a separate chunk: start loading it as soon as the chat is on screen, render plain
+// text for the instant it takes to arrive.
+export const loadMarkdown = () => import('./Markdown');
+const Markdown = lazy(loadMarkdown);
+
+interface Props {
+  message: UiMessage;
+  /** Stable callback taking the message id, so memoized bubbles are not re-rendered by a new function. */
+  onRetry?: (id: string) => void;
+}
+
+function MessageBubbleImpl({ message, onRetry }: Props) {
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2 text-sm text-white sm:max-w-[75%]">
+      <div className="animate-fade-up flex justify-end">
+        <div className="bg-brand-gradient max-w-[88%] rounded-2xl rounded-br-md px-4 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-white shadow-sm wrap-anywhere">
           {message.content}
         </div>
       </div>
@@ -16,31 +28,41 @@ export function MessageBubble({ message, onRetry }: { message: UiMessage; onRetr
   }
 
   const waiting = message.streaming && !message.content;
+  const sources = uniqueSources(message);
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] space-y-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:max-w-[75%]">
-        {message.toolLabel && <ToolStatus label={message.toolLabel} />}
-        {waiting && !message.toolLabel && <ToolStatus />}
-        {message.content && (
-          <div className="md break-words">
-            <Markdown>{message.content}</Markdown>
-          </div>
-        )}
-        {message.sources.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {message.sources.map((s) => (
-              <span key={`${s.source}-${s.section ?? ''}`} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                Source: {s.source}
+    <div className="animate-fade-up flex items-start gap-2.5">
+      <LogoMark size={26} className="mt-0.5" />
+      <div className="min-w-0 max-w-[92%] space-y-2">
+        <div className="rounded-2xl rounded-tl-md bg-surface-2 px-4 py-2.5 text-[14.5px]">
+          {message.toolLabel && <ToolStatus label={message.toolLabel} />}
+          {waiting && !message.toolLabel && <ToolStatus />}
+          {message.content && (
+            <div className="md">
+              <Suspense fallback={<p className="whitespace-pre-wrap">{message.content}</p>}>
+                <Markdown>{message.content}</Markdown>
+              </Suspense>
+              {message.streaming && <span className="stream-caret" aria-hidden="true" />}
+            </div>
+          )}
+        </div>
+
+        {sources.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-1">
+            {sources.map((s) => (
+              <span key={s} className="rounded-full border border-border bg-surface px-2.5 py-0.5 text-[11.5px] font-medium text-muted">
+                Source: {s}
               </span>
             ))}
           </div>
         )}
+
         {import.meta.env.DEV && message.usage && !message.streaming && <UsageLine usage={message.usage} />}
+
         {!message.streaming && message.status !== 'complete' && (
-          <div className="flex items-center gap-3 border-t border-slate-100 pt-2 text-xs text-amber-700">
+          <div className="flex items-center gap-3 px-1 text-xs text-warn">
             <span>{message.status === 'partial' ? 'This reply was interrupted.' : "I couldn't get an answer."}</span>
             {onRetry && (
-              <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={onRetry}>
+              <Button variant="secondary" size="sm" onClick={() => onRetry(message.id)}>
                 Retry
               </Button>
             )}
@@ -50,6 +72,13 @@ export function MessageBubble({ message, onRetry }: { message: UiMessage; onRetr
     </div>
   );
 }
+
+/** Each document once, even when several of its sections were used. */
+function uniqueSources(m: UiMessage): string[] {
+  return [...new Set(m.sources.map((s) => s.source))];
+}
+
+export const MessageBubble = memo(MessageBubbleImpl);
 
 export function formatCost(costUsd: number | null): string {
   if (costUsd === null) return 'cost n/a';
@@ -61,7 +90,7 @@ export function formatCost(costUsd: number | null): string {
 function UsageLine({ usage }: { usage: UsageDto }) {
   const calls = usage.llmCalls > 1 ? ' · ' + usage.llmCalls + ' calls' : '';
   return (
-    <p className="border-t border-dashed border-slate-200 pt-1 font-mono text-[11px] text-slate-400" data-testid="usage-line">
+    <p className="px-1 font-mono text-[11px] text-muted/80" data-testid="usage-line">
       {usage.model} · {usage.promptTokens} in / {usage.completionTokens} out ({usage.totalTokens} total) ·{' '}
       {formatCost(usage.costUsd)}
       {calls}

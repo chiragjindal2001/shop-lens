@@ -1,22 +1,37 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { MAX_MESSAGE_LENGTH } from '@shared';
-import { Button } from '../../components/ui/Button';
+import { useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { MAX_MESSAGE_LENGTH } from '@shared/limits';
+import { Icon } from '../../components/ui/icons';
+import { tip } from '../../lib/tip';
 
 interface Props {
   streaming: boolean;
   onSend(text: string): void;
   onStop(): void;
+  /** Lets the page focus the box (for example from the "Ask the assistant" button). */
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function Composer({ streaming, onSend, onStop }: Props) {
+const MAX_HEIGHT = 160;
+
+export function Composer({ streaming, onSend, onStop, textareaRef }: Props) {
   const [text, setText] = useState('');
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const own = useRef<HTMLTextAreaElement>(null);
+  const ref = textareaRef ?? own;
   const trimmed = text.trim();
   const tooLong = text.length > MAX_MESSAGE_LENGTH;
+  const canSend = trimmed.length > 0 && !tooLong && !streaming;
+
+  // Grow with the text, up to a cap.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + 'px';
+  }, [text, ref]);
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
-    if (!trimmed || tooLong || streaming) return;
+    if (!canSend) return;
     onSend(trimmed);
     setText('');
     ref.current?.focus();
@@ -30,32 +45,41 @@ export function Composer({ streaming, onSend, onStop }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="border-t border-slate-200 bg-white px-4 py-3">
-      <div className="mx-auto flex max-w-3xl items-end gap-2">
-        <div className="flex-1">
-          <textarea
-            ref={ref}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={streaming}
-            rows={2}
-            placeholder="Ask about your orders, returns, shipping…"
-            aria-label="Message"
-            className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
-          />
-          <div className={`mt-0.5 text-right text-xs ${tooLong ? 'text-red-600' : 'text-slate-400'}`}>
-            {text.length}/{MAX_MESSAGE_LENGTH}
-          </div>
-        </div>
+    <form onSubmit={submit} className="px-3 pt-1 pb-3">
+      <div className="shadow-card flex items-end gap-2 rounded-2xl border border-border bg-surface p-2 transition focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/15">
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={streaming}
+          rows={1}
+          placeholder="Ask about orders, returns, shipping…"
+          aria-label="Message"
+          className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-snug outline-none placeholder:text-muted/70 disabled:opacity-60"
+        />
         {streaming ? (
-          <Button type="button" variant="secondary" onClick={onStop} className="mb-5">
-            Stop
-          </Button>
+          <button type="button" onClick={onStop} aria-label="Stop" {...tip('Stop generating', 'top', 'end')} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-fg transition hover:bg-border">
+            <Icon name="stop" size={16} fill="currentColor" />
+          </button>
         ) : (
-          <Button type="submit" disabled={!trimmed || tooLong} className="mb-5">
-            Send
-          </Button>
+          <button
+            type="submit"
+            disabled={!canSend}
+            aria-label="Send"
+            {...tip('Send message', 'top', 'end')}
+            className="bg-brand-gradient grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition enabled:hover:brightness-110 disabled:opacity-35"
+          >
+            <Icon name="send" size={18} strokeWidth={2.2} />
+          </button>
+        )}
+      </div>
+      <div className="mt-1.5 flex justify-between px-1.5 text-[11px] text-muted">
+        <span>Enter to send · Shift+Enter for a new line</span>
+        {text.length > MAX_MESSAGE_LENGTH * 0.8 && (
+          <span className={tooLong ? 'font-medium text-danger' : ''}>
+            {text.length}/{MAX_MESSAGE_LENGTH}
+          </span>
         )}
       </div>
     </form>
