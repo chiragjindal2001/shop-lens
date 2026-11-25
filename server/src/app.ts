@@ -11,6 +11,7 @@ import { AuthController } from './modules/auth/auth.controller';
 import { authRoutes } from './modules/auth/auth.routes';
 import { ChatController } from './modules/chat/chat.controller';
 import { chatRoutes } from './modules/chat/chat.routes';
+import { mountDocs } from './openapi/swagger-ui';
 import { CatalogController } from './modules/catalog/catalog.controller';
 import { catalogRoutes } from './modules/catalog/catalog.routes';
 import { OrdersController } from './modules/orders/orders.controller';
@@ -44,6 +45,7 @@ export function createApp(c: Container): Express {
   api.use('/orders', ordersRoutes(new OrdersController(c.orders), mw));
   api.use('/products', catalogRoutes(new CatalogController(c.catalog), mw));
   api.use(notFoundHandler);
+  if (config.docsEnabled) mountDocs(app); // Swagger UI + OpenAPI JSON, before the /api router's 404
   app.use('/api', api);
 
   mountStatic(app, config.CLIENT_DIST);

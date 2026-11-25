@@ -35,6 +35,8 @@ const envSchema = z.object({
   KB_DIR: z.string().optional(),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   LLM_PROVIDER: z.enum(['openrouter', 'mock']).default('openrouter'),
+  /** Serve Swagger UI at /api/docs. Default: on outside production, off in production. */
+  API_DOCS: z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true')),
   /** Rate limits. Windows are durations like 1m or 15m. */
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
   RATE_LIMIT_AUTH_WINDOW: z.string().default('15m'),
@@ -68,6 +70,8 @@ export type Config = z.infer<typeof envSchema> & {
   refreshTokenTtlSeconds: number;
   /** LLM_TIMEOUT in milliseconds. */
   llmTimeoutMs: number;
+  /** Whether /api/docs (Swagger UI) and /api/openapi.json are served. */
+  docsEnabled: boolean;
   rateLimits: {
     auth: { windowMs: number; limit: number };
     chat: { windowMs: number; limit: number };
@@ -117,6 +121,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     accessTokenTtlSeconds: accessTtl!,
     refreshTokenTtlSeconds: refreshTtl!,
     mongoUri: buildMongoUri(cfg),
+    docsEnabled: cfg.API_DOCS ?? cfg.NODE_ENV !== 'production',
     // Real embeddings score related text ~0.4+; the mock's hashed bag-of-words scores lower.
     kbMinScore: cfg.KB_MIN_SCORE ?? (cfg.LLM_PROVIDER === 'mock' ? 0.12 : 0.35),
     rateLimits: {

@@ -16,5 +16,7 @@ services:
       CLIENT_ORIGIN: http://localhost:8080
       # Plain http on localhost: Secure cookies are not reliably accepted (Safari), so turn them off here.
       COOKIE_SECURE: 'false'
+      # Local Docker: serve Swagger UI at /api/docs (off by default when NODE_ENV=production).
+      API_DOCS: 'true'
       TRUST_PROXY: 0
     restart: unless-stopped
