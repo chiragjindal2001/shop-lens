@@ -1,3 +1,4 @@
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { type Express } from 'express';
@@ -29,6 +30,13 @@ export function createApp(c: Container): Express {
   app.use(requestId);
   app.use(helmet());
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
+  // gzip for JSON, JS and CSS (the 324 kB script becomes ~106 kB). Never for the chat stream: compressing
+  // would buffer the Server-Sent Events and the reply would no longer arrive token by token.
+  app.use(
+    compression({
+      filter: (req, res) => !String(res.getHeader('Content-Type') ?? '').startsWith('text/event-stream') && compression.filter(req, res),
+    }),
+  );
   app.use(express.json({ limit: '16kb' }));
   app.use(cookieParser());
 

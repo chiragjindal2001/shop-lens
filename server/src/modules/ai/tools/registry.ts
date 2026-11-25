@@ -12,17 +12,22 @@ export interface ToolOutcome {
 
 export class ToolRegistry {
   private readonly byName = new Map<string, Tool>();
+  private cachedSpecs: LlmToolSpec[] | null = null;
 
   constructor(tools: Tool[]) {
     for (const t of tools) this.byName.set(t.name, t);
   }
 
-  /** zod schemas → JSON Schema tool definitions for the LLM. */
+  /**
+   * zod schemas → JSON Schema tool definitions for the LLM. Built once: the tools never change, and this is
+   * called on every model call (up to 5 per message).
+   */
   specs(): LlmToolSpec[] {
-    return [...this.byName.values()].map((t) => {
+    this.cachedSpecs ??= [...this.byName.values()].map((t) => {
       const { $schema: _omit, ...parameters } = z.toJSONSchema(t.schema) as Record<string, unknown>;
       return { name: t.name, description: t.description, parameters };
     });
+    return this.cachedSpecs;
   }
 
   label(name: string): string {

@@ -79,18 +79,23 @@ export class ChatService {
     }
 
     // 2. Placeholder assistant message: whatever happens next, something is saved.
-    const assistant = await this.messages.create(userId, {
-      conversationId: conversation.id,
-      role: 'assistant',
-      content: '',
-      status: 'partial',
-      replyTo: userMessage.id,
-    });
-
-    const recent = (await this.messages.listRecent(userId, conversation.id, this.history.maxMessages + 2)).filter(
-      (m) => m.id !== assistant.id,
+    // The placeholder insert and the history read are independent, so they run together (one database
+    // round trip less before the first token). The read may or may not include the placeholder: it is
+    // filtered out below, and the +2 gives room for it.
+    const [assistant, fetched] = await Promise.all([
+      this.messages.create(userId, {
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: '',
+        status: 'partial',
+        replyTo: userMessage.id,
+      }),
+      this.messages.listRecent(userId, conversation.id, this.history.maxMessages + 2),
+    ]);
+    const history = trimHistory(
+      fetched.filter((m) => m.id !== assistant.id),
+      this.history,
     );
-    const history = trimHistory(recent, this.history);
 
     const sse = openSse();
     sse.send({ event: 'meta', data: { conversationId: conversation.id, messageId: assistant.id } });
